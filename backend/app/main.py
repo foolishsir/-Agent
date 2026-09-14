@@ -1,0 +1,180 @@
+"""FastAPI 应用入口.
+
+启动方式::
+
+    cd backend
+    python -m uvicorn app.main:app --reload --port 8000
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.api.router import api_router
+from app.core.config import settings
+from app.core.exceptions import AppException, ErrorCode
+from app.core.logging import get_logger, setup_logging
+from app.core.middleware import TraceIdMiddleware
+from app.core.response import fail
+
+logger = get_logger("docmind.main")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    """应用生命周期: 启动时初始化资源, 关闭时优雅释放."""
+    setup_logging()
+    settings.ensure_dirs()
+
+    logger.info(
+        "DocMind 启动中 | env=%s version=%s debug=%s",
+        settings.app_env,
+        settings.app_version,
+        settings.debug,
+    )
+    logger.info(
+        "关键配置 | embedding=%s(%sd) rerank=%s llm=%s@%s task_mode=%s vector_store=chroma/%s",
+        settings.embedding_model,
+        settings.embedding_dim,
+        settings.rerank_model if settings.rerank_enabled else "off",
+        settings.llm_model,
+        settings.llm_provider,
+        settings.task_mode,
+        settings.chroma_mode,
+    )
+    if not settings.llm_configured:
+        logger.warning(
+            "未检测到 DOCMIND_LLM_API_KEY, 问答接口将返回 503. 请在 %s 中配置后重启.",
+            settings.data_dir.parent / ".env",
+        )
+
+    # 预加载本地模型 / 初始化向量库在 P1 阶段接入, 放在这里做一次性预热,
+    # 避免第一个真实请求承担模型加载的几十秒冷启动开销.
+    yield
+
+    logger.info("DocMind 正在关闭 ...")
+    _shutdown_embedding()
+    logger.info("DocMind 已关闭")
+
+
+def _shutdown_embedding() -> None:
+    """释放本地模型占用的显存/内存(P1 阶段实现真正的释放逻辑)."""
+    try:
+        from app.services.embedding import release_models  # noqa: PLC0415
+
+        release_models()
+    except ImportError:
+        # P1 之前该模块尚不存在, 属于预期情况
+        pass
+    except Exception:  # pragma: no cover - 关闭阶段不应因清理失败而中断
+        logger.exception("释放本地模型资源时发生异常")
+
+
+def create_app() -> FastAPI:
+    """应用工厂. 便于测试中创建隔离实例."""
+    app = FastAPI(
+        title=f"{settings.app_name} API",
+        description=(
+            "面向私有文档的检索增强问答系统: "
+            "PDF 解析 -> 父子分块 -> 向量化入库 -> 混合检索 + 重排 -> 引用溯源式生成"
+        ),
+        version=settings.app_version,
+        lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+    )
+
+    app.add_middleware(TraceIdMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Trace-Id"],
+    )
+
+    _register_exception_handlers(app)
+    app.include_router(api_router, prefix=settings.api_prefix)
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> dict[str, str]:
+        return {
+            "name": settings.app_name,
+            "version": settings.app_version,
+            "docs": "/docs",
+        }
+
+    return app
+
+
+def _register_exception_handlers(app: FastAPI) -> None:
+    """全局异常处理: 把各类异常统一翻译成 ApiResponse 结构."""
+
+    @app.exception_handler(AppException)
+    async def _handle_app_exception(request: Request, exc: AppException) -> JSONResponse:
+        logger.warning(
+            "业务异常 | path=%s code=%s message=%s detail=%s",
+            request.url.path,
+            exc.code.value,
+            exc.message,
+            exc.detail,
+        )
+        return JSONResponse(
+            status_code=exc.http_status, content=fail(exc.code, exc.message, exc.detail)
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _handle_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # 把 pydantic 的错误详情压缩成前端友好的结构
+        details = [
+            {"field": ".".join(str(x) for x in err.get("loc", ())), "reason": err.get("msg", "")}
+            for err in exc.errors()
+        ]
+        logger.warning("参数校验失败 | path=%s details=%s", request.url.path, details)
+        return JSONResponse(
+            status_code=400,
+            content=fail(ErrorCode.PARAM_INVALID, "请求参数不合法", details),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _handle_http_exception(
+        _request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        code = {
+            401: ErrorCode.UNAUTHORIZED,
+            403: ErrorCode.FORBIDDEN,
+            404: ErrorCode.NOT_FOUND,
+            429: ErrorCode.RATE_LIMITED,
+        }.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
+        message = exc.detail if isinstance(exc.detail, str) else "请求失败"
+        return JSONResponse(status_code=exc.status_code, content=fail(code, message))
+
+    @app.exception_handler(Exception)
+    async def _handle_unexpected(request: Request, _exc: Exception) -> JSONResponse:
+        # 未预期异常必须打完整堆栈, 但绝不把堆栈返回给前端(信息泄露).
+        # 这里用 logger.exception 而非显式打印 _exc: 它在异常处理器中被调用时
+        # 能直接取到 sys.exc_info(), 输出完整 traceback.
+        logger.exception("未捕获异常 | path=%s", request.url.path)
+        trace_id = getattr(request.state, "trace_id", "-")
+        return JSONResponse(
+            status_code=500,
+            content=fail(
+                ErrorCode.INTERNAL_ERROR,
+                "服务内部错误, 请稍后重试",
+                {"trace_id": trace_id} if settings.debug else None,
+            ),
+        )
+
+
+app = create_app()

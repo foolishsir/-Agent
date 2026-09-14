@@ -1,0 +1,42 @@
+# =============================================================================
+# 统一换行符策略
+#
+# 为什么必须显式声明: Windows 下 Git 默认把文本文件检出为 CRLF,
+# 而 CRLF 会让**容器内的 shell 脚本和 Dockerfile 直接执行失败**
+# (shebang 行末尾多一个 \r, 报 "no such file or directory")。
+# 这是一个本地开发完全正常、一上 Docker 就炸的经典坑。
+# =============================================================================
+
+# 仓库内统一存储为 LF
+* text=auto eol=lf
+
+# Windows 批处理/PowerShell 必须保留 CRLF, 否则 cmd.exe 解析异常
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件不做任何换行符转换
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.pt binary
+*.bin binary
+*.safetensors binary
+*.onnx binary
+*.db binary
+*.sqlite3 binary
+
+# Git diff 语义化展示
+*.py diff=python
+*.md diff=markdown
+*.jsonl diff=json
+
+# 语言统计排除(避免前端构建产物污染 GitHub 语言占比)
+frontend/dist/** linguist-generated=true
+*.lock linguist-generated=true
