@@ -126,7 +126,12 @@ def setup_logging(level: str | int | None = None, log_dir: Path | None = None) -
     file_handler.setFormatter(ColorFormatter(_LOG_FORMAT, _DATE_FORMAT, use_color=False))
     root.addHandler(file_handler)
 
-    # 降噪: 第三方库的 INFO 日志太吵
+    # 降噪: 第三方库的日志太吵.
+    #
+    # 尤其是 DEBUG 级别下的 aiosqlite / sqlalchemy.engine ——
+    # 它们会把**每一条 SQL 和每一个游标操作**都打出来. 实测一次文档入库
+    # 能产生上千行日志, 把自己的业务日志彻底淹没.
+    # 排查 ORM 问题时可以临时把这两个名字从列表里去掉, 但不要长期开着.
     for noisy in (
         "httpx",
         "httpcore",
@@ -134,6 +139,11 @@ def setup_logging(level: str | int | None = None, log_dir: Path | None = None) -
         "chromadb",
         "sentence_transformers",
         "modelscope",
+        "aiosqlite",
+        "sqlalchemy.engine",
+        "sqlalchemy.pool",
+        "asyncio",
+        "multipart",
     ):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 

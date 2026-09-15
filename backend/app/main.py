@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,7 @@ from app.core.exceptions import AppException, ErrorCode
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import TraceIdMiddleware
 from app.core.response import fail
+from app.db.session import dispose_engine, init_db
 
 logger = get_logger("docmind.main")
 
@@ -55,13 +57,32 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             settings.data_dir.parent / ".env",
         )
 
-    # 预加载本地模型 / 初始化向量库在 P1 阶段接入, 放在这里做一次性预热,
-    # 避免第一个真实请求承担模型加载的几十秒冷启动开销.
+    # 建表 —— 必须在任何请求到来之前完成, 否则第一个请求会撞上"表不存在"
+    await init_db()
+
+    if settings.warmup_on_startup:
+        # 预热本地模型: 把几十秒的加载开销从"第一个用户请求"移到"进程启动".
+        # 不预热的话, 第一个提问的用户会看到一次莫名其妙的超时.
+        await asyncio.to_thread(warmup_embedding)
+    else:
+        logger.info("已跳过模型预热(DOCMIND_WARMUP_ON_STARTUP=false)")
+
     yield
 
     logger.info("DocMind 正在关闭 ...")
+    await dispose_engine()
     _shutdown_embedding()
     logger.info("DocMind 已关闭")
+
+
+def warmup_embedding() -> None:
+    """预热 Embedding 模型. 失败只告警不阻塞启动."""
+    try:
+        from app.services.embedding import warmup  # noqa: PLC0415
+
+        warmup()
+    except Exception:  # noqa: BLE001 - 预热失败不该让服务起不来
+        logger.exception("Embedding 预热失败, 首次请求会较慢")
 
 
 def _shutdown_embedding() -> None:

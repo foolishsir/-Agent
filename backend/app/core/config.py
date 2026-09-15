@@ -151,6 +151,11 @@ class Settings(BaseSettings):
     # 文本抽取字符数低于该值时, 判定为扫描件, 触发 OCR 降级链路
     ocr_fallback_threshold: int = 80
 
+    # 启动时是否预热本地模型.
+    # 预热把"模型加载"的开销从第一个用户请求移到进程启动阶段,
+    # 代价是启动变慢(本地 BGE 在 CPU 上约 3~10 秒). 测试环境下应关闭.
+    warmup_on_startup: bool = True
+
     # ================================================================== #
     # 校验与派生属性
     # ================================================================== #
@@ -179,6 +184,19 @@ class Settings(BaseSettings):
             if not raw.is_absolute():
                 raw = PROJECT_ROOT / raw
             setattr(self, name, raw.resolve())
+
+        # SQLite 连接串里的相对路径同样要锚定到项目根目录.
+        # 否则从不同工作目录启动服务会连到两个不同的数据库文件,
+        # 表现为"本地开发有数据, 部署后数据全没了".
+        if self.database_url.startswith("sqlite"):
+            scheme, sep, raw_path = self.database_url.partition(":///")
+            if sep and raw_path:
+                db_path = Path(raw_path)
+                if not db_path.is_absolute():
+                    db_path = (PROJECT_ROOT / raw_path).resolve()
+                # SQLAlchemy 在 Windows 上要求绝对路径用正斜杠形式
+                self.database_url = f"{scheme}:///{db_path.as_posix()}"
+
         return self
 
     @property

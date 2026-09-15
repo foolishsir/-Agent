@@ -48,11 +48,17 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"backend/tests/**" = ["ARG", "S101"]
+"backend/tests/**" = ["ARG", "S101", "PLC0415"]
 # 脚本允许 print(生产代码用 logger);
 # 允许函数内 import —— 自检脚本必须能在依赖缺失时依然跑起来,
 # 所以对 torch / app.core.config 等采用延迟导入并捕获 ImportError.
 "backend/scripts/**" = ["T20", "PLC0415"]
+# 可选重依赖的惰性导入: torch / sentence-transformers / chromadb / openai
+# 都是"只在真正用到时才需要"的库. 放到模块顶层会让 `import app.main`
+# 强依赖全部模型库, 直接破坏"本地模型 / 云端 API 可切换"的可插拔设计,
+# 也会让没装 torch 的用户连健康检查都跑不起来.
+"backend/app/services/embedding/**" = ["PLC0415"]
+"backend/app/services/vectorstore/**" = ["PLC0415"]
 
 [tool.ruff.lint.isort]
 # 声明 app 为第一方包, 否则 ruff 会把 `from app.xxx` 误判为第三方,

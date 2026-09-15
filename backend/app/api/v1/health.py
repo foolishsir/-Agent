@@ -98,6 +98,20 @@ def _check_redis() -> tuple[bool, str]:
     return _check_package("redis"), settings.redis_url
 
 
+async def _check_database() -> tuple[bool, str]:
+    """真实连一次数据库, 而不是只看配置.
+
+    价值: 服务能起来但数据库文件被锁、路径不可写时, 就绪探针能第一时间暴露,
+    而不是等用户上传文档才 500.
+    """
+    try:
+        from app.db.session import check_connection  # noqa: PLC0415
+
+        return await check_connection()
+    except Exception as exc:  # noqa: BLE001 - 探针需要兜住一切
+        return False, f"数据库不可用: {exc}"
+
+
 @router.get("/ready", summary="就绪探针")
 async def readiness() -> dict[str, Any]:
     """检查关键依赖, 返回逐项明细, 便于定位是哪个环节没准备好."""
@@ -105,6 +119,7 @@ async def readiness() -> dict[str, Any]:
 
     checks: dict[str, tuple[bool, str]] = {
         "workspace": _check_writable_dirs(),
+        "database": await _check_database(),
         "llm": _check_llm(),
         "embedding": _check_embedding(),
         "vector_store": _check_vector_store(),
@@ -117,7 +132,7 @@ async def readiness() -> dict[str, Any]:
     }
     # llm 未配置不算「未就绪」: 文档上传/入库链路依然可用, 只有问答不可用.
     # 这样避免探针把整个服务摘掉, 但问题依然能在明细里被看见.
-    blocking = ("workspace", "embedding", "vector_store")
+    blocking = ("workspace", "database", "embedding", "vector_store")
     ready = all(details[name]["ready"] for name in blocking)
 
     return ok(
