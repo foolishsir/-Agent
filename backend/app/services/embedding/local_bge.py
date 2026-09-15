@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 import threading
 from collections.abc import Sequence
 from typing import Any
@@ -21,6 +23,57 @@ from app.core.exceptions import EmbeddingError
 from app.core.logging import get_logger, log_kv
 
 logger = get_logger("docmind.embedding.local")
+
+
+def _model_is_cached(model_name: str) -> bool:
+    """检查模型是否已**完整**缓存在本地(不发起任何网络请求).
+
+    ``snapshot_download(local_files_only=True)`` 只读本地缓存目录,
+    缺任何一个文件都会抛异常, 因此可以当作"缓存是否完整"的判据.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:  # pragma: no cover
+        return False
+
+    try:
+        snapshot_download(model_name, local_files_only=True)
+        return True
+    except Exception:  # noqa: BLE001 - 未缓存时 huggingface_hub 抛的异常类型不稳定
+        return False
+
+
+def _activate_offline_if_cached(model_name: str) -> bool:
+    """模型已缓存时切到离线模式; 返回是否成功切换.
+
+    为什么必须要这一步
+    ------------------
+    ``huggingface_hub`` 即使发现本地已有缓存, 默认仍会向远端发 HEAD 请求
+    **检查是否有新版本**. 在网络受限或离线环境下这些请求会超时, 并按
+    1s / 2s / 4s 退避重试 5 次, 每个文件都要走一遍 —— 实测把服务启动卡住了
+    好几分钟, 而且日志里只有一堆 urllib3 的 timeout 警告, 极难定位根因.
+
+    缓存已经完整时没有任何理由再联网. 切离线后启动从"分钟级"回到"秒级",
+    并且在完全断网的环境下也能正常使用.
+
+    **时序要求(很容易踩)**: 必须在 ``import sentence_transformers`` **之前**设置.
+    ``huggingface_hub.constants`` 在模块导入时就把环境变量读成了模块级常量,
+    之后再改 ``os.environ`` 是**无效的**. 如果该模块已被其他库提前导入,
+    就必须直接改写常量本身.
+    """
+    if not _model_is_cached(model_name):
+        # 未缓存 → 必须联网下载, 保持默认行为
+        return False
+
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    # 常量已定型的场景: 直接改写, 否则光设环境变量不起作用
+    constants = sys.modules.get("huggingface_hub.constants")
+    if constants is not None:
+        constants.HF_HUB_OFFLINE = True  # type: ignore[attr-defined]
+
+    return True
 
 
 class LocalBGEEmbedding:
@@ -117,6 +170,10 @@ class LocalBGEEmbedding:
             if self._model is not None:
                 return self._model
 
+            # 关键: 必须在 import sentence_transformers **之前**决定是否离线,
+            # 因为 huggingface_hub 在模块导入时就会把 HF_HUB_OFFLINE 读成常量.
+            offline = _activate_offline_if_cached(self._model_name)
+
             try:
                 from sentence_transformers import SentenceTransformer
             except ImportError as exc:  # pragma: no cover
@@ -130,6 +187,7 @@ class LocalBGEEmbedding:
                 "embedding.loading",
                 model=self._model_name,
                 device=self._device,
+                offline=offline,
             )
             try:
                 model = SentenceTransformer(self._model_name, device=self._device)
