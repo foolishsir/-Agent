@@ -5,12 +5,19 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 
-def test_root_returns_service_meta(client: TestClient) -> None:
+def test_root_serves_web_console(client: TestClient) -> None:
+    """根路径返回 Web 控制台页面. 开浏览器就能用, 不需要额外起前端服务."""
     resp = client.get("/")
     assert resp.status_code == 200
-    body = resp.json()
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "DocMind" in resp.text
+
+
+def test_api_meta_endpoint(client: TestClient) -> None:
+    """服务元信息改由 /api 提供, 给脚本和监控用."""
+    body = client.get("/api").json()
     assert body["name"] == "DocMind"
-    assert "version" in body
+    assert body["health"] == "/api/v1/health"
 
 
 def test_liveness_ok(client: TestClient) -> None:

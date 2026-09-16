@@ -11,11 +11,13 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
@@ -27,6 +29,9 @@ from app.core.response import fail
 from app.db.session import dispose_engine, init_db
 
 logger = get_logger("docmind.main")
+
+#: 前端静态资源目录(单页控制台)
+STATIC_DIR: Path = Path(__file__).resolve().parent / "static"
 
 
 @asynccontextmanager
@@ -67,6 +72,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.info("已跳过模型预热(DOCMIND_WARMUP_ON_STARTUP=false)")
 
+    _log_ready_banner()
+
     yield
 
     logger.info("DocMind 正在关闭 ...")
@@ -83,6 +90,21 @@ def warmup_embedding() -> None:
         warmup()
     except Exception:  # noqa: BLE001 - 预热失败不该让服务起不来
         logger.exception("Embedding 预热失败, 首次请求会较慢")
+
+
+def _log_ready_banner() -> None:
+    """启动完成后打印入口地址.
+
+    模型预热会占用 20 秒到几分钟, 期间端口还没开始接受连接, 用户只知道"打不开".
+    把入口地址在预热**之后**打印出来, 就是给用户一个明确的"现在可以访问了"信号.
+    """
+    base = f"http://127.0.0.1:{settings.port}"
+    logger.info("")
+    logger.info("  %s 已就绪, 可以访问以下地址:", settings.app_name)
+    logger.info("    Web 控制台  %s/", base)
+    logger.info("    接口文档    %s/docs", base)
+    logger.info("    就绪探针    %s%s/health/ready", base, settings.api_prefix)
+    logger.info("")
 
 
 def _shutdown_embedding() -> None:
@@ -124,14 +146,28 @@ def create_app() -> FastAPI:
     )
 
     _register_exception_handlers(app)
+
+    # 前端控制台: 单文件 HTML, 不需要 Node、不需要构建步骤.
+    # 这样"clone 下来就能用"的门槛最低 —— 直接开浏览器就能操作, 不用先装前端工具链.
+    # P6 阶段会被 Vue3 应用替换(或由 Nginx 独立托管).
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
     app.include_router(api_router, prefix=settings.api_prefix)
 
     @app.get("/", include_in_schema=False)
-    async def root() -> dict[str, str]:
+    async def root() -> FileResponse:
+        """根路径直接返回 Web 控制台."""
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/api", include_in_schema=False)
+    async def api_meta() -> dict[str, str]:
+        """服务元信息(JSON). 给脚本和监控用, 人类入口在 ``/``."""
         return {
             "name": settings.app_name,
             "version": settings.app_version,
             "docs": "/docs",
+            "openapi": "/openapi.json",
+            "health": f"{settings.api_prefix}/health",
         }
 
     return app
