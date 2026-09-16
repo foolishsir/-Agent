@@ -94,7 +94,49 @@
   .empty-icon { font-size: 30px; opacity: .3; margin-bottom: 10px; }
 
   /* ============================ 问答 ============================ */
-  .chat-layout { display: flex; flex-direction: column; height: calc(100vh - 190px); min-height: 460px; }
+  .chat-shell { display: flex; height: calc(100vh - 150px); min-height: 520px; }
+
+  /* -------------------------- 会话侧边栏 -------------------------- */
+  .conv-side {
+    width: 252px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: #fbfbfc; display: flex; flex-direction: column;
+  }
+  .conv-side-head { padding: 12px; border-bottom: 1px solid var(--border); }
+  .conv-new {
+    width: 100%; padding: 9px; border-radius: 8px; border: 1px dashed #c7d2e3;
+    background: #fff; color: var(--brand); font: inherit; font-size: 13px;
+    font-weight: 550; cursor: pointer; transition: all .12s;
+  }
+  .conv-new:hover { border-color: var(--brand); background: var(--brand-soft); border-style: solid; }
+  .conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .conv-item {
+    padding: 9px 11px; border-radius: 8px; cursor: pointer; margin-bottom: 3px;
+    border: 1px solid transparent; position: relative;
+  }
+  .conv-item:hover { background: #f2f4f7; }
+  .conv-item.active { background: var(--brand-soft); border-color: #d3e0ff; }
+  .conv-title {
+    font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; padding-right: 34px;
+  }
+  .conv-meta { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .conv-ops {
+    position: absolute; right: 7px; top: 8px; display: none; gap: 2px;
+  }
+  .conv-item:hover .conv-ops { display: flex; }
+  .conv-op {
+    width: 20px; height: 20px; border: none; background: rgba(255,255,255,.9);
+    border-radius: 5px; cursor: pointer; font-size: 11px; color: var(--dim);
+    display: grid; place-items: center; padding: 0; font-family: inherit;
+  }
+  .conv-op:hover { background: #fff; color: var(--text); box-shadow: var(--shadow); }
+  .conv-op.del:hover { color: var(--red); }
+  .conv-empty { padding: 28px 14px; text-align: center; color: var(--faint); font-size: 12.5px; line-height: 1.8; }
+  .conv-search { width: 100%; margin-top: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; font: inherit; font-size: 12.5px; outline: none; }
+  .conv-search:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+
+  .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chat-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .chat-scroll { flex: 1; overflow-y: auto; padding: 20px; }
   .msg { display: flex; gap: 11px; margin-bottom: 20px; }
   .msg.user { flex-direction: row-reverse; }
@@ -309,28 +351,41 @@
   <!-- ========================= 智能问答 ========================= -->
   <section id="view-chat" class="hidden">
     <div class="card" style="margin-top:20px">
-      <div class="chat-layout">
-        <div class="chat-scroll" id="chat-scroll">
-          <div id="chat-empty" class="empty">
-            <div class="empty-icon">💬</div>
-            <div style="margin-bottom:6px">基于你上传的文档提问，答案会标注来源页码</div>
-            <div style="font-size:12px">先在「文档管理」上传 PDF，等状态变成「已就绪」再来提问</div>
+      <div class="chat-shell">
+
+        <aside class="conv-side">
+          <div class="conv-side-head">
+            <button class="conv-new" id="conv-new">＋ 新建对话</button>
+            <input type="text" class="conv-search" id="conv-search" placeholder="搜索历史对话…">
           </div>
-          <div id="chat-messages"></div>
+          <div class="conv-list" id="conv-list"></div>
+        </aside>
+
+        <div class="chat-main">
+          <div class="chat-layout">
+            <div class="chat-scroll" id="chat-scroll">
+              <div id="chat-empty" class="empty">
+                <div class="empty-icon">💬</div>
+                <div style="margin-bottom:6px">基于你上传的文档提问，答案会标注来源页码</div>
+                <div style="font-size:12px">先在「文档管理」上传 PDF，等状态变成「已就绪」再来提问</div>
+              </div>
+              <div id="chat-messages"></div>
+            </div>
+
+            <div class="chat-input">
+              <div class="examples" id="examples"></div>
+              <div class="chat-input-row">
+                <textarea id="question" rows="1" placeholder="输入问题，Enter 发送 / Shift+Enter 换行"></textarea>
+                <button class="btn primary" id="send" style="padding:10px 20px">发送</button>
+              </div>
+              <div class="chat-hint">
+                <span id="chat-status">就绪</span>
+                <span id="chat-params"></span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="chat-input">
-          <div class="examples" id="examples"></div>
-          <div class="chat-input-row">
-            <textarea id="question" rows="1" placeholder="输入问题，Enter 发送 / Shift+Enter 换行"></textarea>
-            <button class="btn primary" id="send" style="padding:10px 20px">发送</button>
-            <button class="btn" id="clear-chat">清空</button>
-          </div>
-          <div class="chat-hint">
-            <span id="chat-status">就绪</span>
-            <span id="chat-params"></span>
-          </div>
-        </div>
       </div>
     </div>
   </section>
@@ -374,7 +429,7 @@ const USER_ID = "default-user";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const STATUS_LABEL = { PENDING: "排队中", PARSING: "解析中", EMBEDDING: "向量化中", READY: "已就绪", FAILED: "失败", DELETED: "已删除" };
-let busy = false, pollTimer = null, chatHistory = [];
+let busy = false, pollTimer = null;
 
 /* ------------------------------ 工具 ------------------------------ */
 function fmtSize(b) {
@@ -529,17 +584,25 @@ async function ask(question) {
   $("question").style.height = "auto";
 
   addMessage("user", esc(question));
-  chatHistory.push({ role: "user", content: question });
 
   const bubble = addMessage("bot", `<div class="stage" id="stage-live"><span class="spin"></span><span>正在检索…</span></div>`);
   const stageBox = bubble.querySelector("#stage-live");
   let answer = "", citations = [], corrected = false;
+  let newConversationId = null;
 
   try {
+    // 有活动会话就续写; 没有就让后端自动建一个(create_conversation=true).
+    // 这样用户不必先点"新建对话"再提问, 也不会产生"建了会话却没提问"的空记录.
+    const payload = {
+      question,
+      conversation_id: conv.activeId,
+      create_conversation: !conv.activeId,
+    };
+
     const res = await fetch(API + "/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-User-Id": USER_ID },
-      body: JSON.stringify({ question, history: chatHistory.slice(-7, -1) }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -575,7 +638,13 @@ async function ask(question) {
       let payload;
       try { payload = JSON.parse(data); } catch { return; }
 
-      if (ev === "stage") {
+      if (ev === "conversation") {
+        // 后端自动建了会话(或确认了当前会话) → 记下来, 后续轮次续写同一个会话
+        newConversationId = payload.conversation_id;
+        conv.activeId = payload.conversation_id;
+        localStorage.setItem(LS_KEY, payload.conversation_id);
+        renderConvList();
+      } else if (ev === "stage") {
         if (stageBox) stageBox.innerHTML = `<span class="spin"></span><span>${esc(payload.detail || payload.stage)}</span>`;
         $("chat-status").textContent = payload.detail || "";
       } else if (ev === "sources") {
@@ -590,19 +659,23 @@ async function ask(question) {
       } else if (ev === "done") {
         answer = payload.answer ?? answer;
         bubble.innerHTML = renderAnswer(answer) + renderCitations(citations, corrected);
-        chatHistory.push({ role: "assistant", content: answer });
         $("chat-status").textContent = payload.refused
-          ? "已拒答（文档中无相关内容）"
-          : `完成 · 首字 ${payload.first_token_ms ?? "-"} ms · 总计 ${payload.total_ms ?? "-"} ms`;
+          ? "已拒答（文档中无相关内容）· 已保存到历史"
+          : `完成 · 首字 ${payload.first_token_ms ?? "-"} ms · 总计 ${payload.total_ms ?? "-"} ms · 已保存到历史`;
       } else if (ev === "error") {
         throw new Error(payload.message || "生成失败");
       }
     }
+
+    // 本轮跑完后刷新侧边栏: 新会话要出现在列表里, 已有会话的"消息数/时间"也要更新
+    loadConversations(conv.keyword);
   } catch (e) {
     if (!answer) bubble.innerHTML = `<p style="color:var(--red)">出错了：${esc(e.message)}</p>`;
     else bubble.innerHTML = renderAnswer(answer) + `<div class="warn-note">生成中断：${esc(e.message)}</div>`;
     toast("问答失败：" + e.message, "err");
     $("chat-status").textContent = "失败";
+    // 失败也刷新一次: 后端会把这一轮(含错误信息)落库, 侧边栏消息数需要同步
+    loadConversations(conv.keyword);
   } finally {
     busy = false;
     $("send").disabled = false;
@@ -675,6 +748,142 @@ async function loadConfig(force = false) {
 }
 
 /* ========================== 分块浏览器 ========================== */
+/* ========================== 会话历史 ========================== */
+const conv = { list: [], activeId: null, keyword: "" };
+const LS_KEY = "docmind.activeConversation";
+
+function fmtRelative(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return Math.floor(diff / 60) + " 分钟前";
+  if (diff < 86400) return Math.floor(diff / 3600) + " 小时前";
+  if (diff < 86400 * 7) return Math.floor(diff / 86400) + " 天前";
+  return d.toLocaleDateString("zh-CN");
+}
+
+async function loadConversations(keyword = "") {
+  conv.keyword = keyword;
+  try {
+    const params = new URLSearchParams({ page: 1, page_size: 50 });
+    if (keyword) params.set("keyword", keyword);
+    const data = await api("/conversations?" + params.toString());
+    conv.list = data.items || [];
+    renderConvList();
+  } catch (e) {
+    $("conv-list").innerHTML = `<div class="conv-empty" style="color:var(--red)">加载失败：${esc(e.message)}</div>`;
+  }
+}
+
+function renderConvList() {
+  const box = $("conv-list");
+  if (!conv.list.length) {
+    box.innerHTML = `<div class="conv-empty">${conv.keyword ? "没有匹配的对话" : "还没有历史对话<br>提问后会在这里自动保存"}</div>`;
+    return;
+  }
+  box.innerHTML = conv.list.map((c) => `
+    <div class="conv-item ${c.id === conv.activeId ? "active" : ""}" data-conv="${esc(c.id)}">
+      <div class="conv-title">${esc(c.title)}</div>
+      <div class="conv-meta">${c.message_count} 条 · ${fmtRelative(c.last_message_at || c.updated_at)}</div>
+      <div class="conv-ops">
+        <button class="conv-op" data-conv-op="rename" data-id="${esc(c.id)}" title="重命名">✎</button>
+        <button class="conv-op del" data-conv-op="delete" data-id="${esc(c.id)}" title="删除">✕</button>
+      </div>
+    </div>`).join("");
+}
+
+/** 打开历史会话: 从数据库读取消息并恢复整个对话. */
+async function openConversation(id) {
+  conv.activeId = id;
+  localStorage.setItem(LS_KEY, id);
+  renderConvList();
+
+  $("chat-messages").innerHTML = "";
+  $("chat-empty").classList.add("hidden");
+  const bubble = addMessage("bot", `<div class="stage"><span class="spin"></span><span>正在恢复对话…</span></div>`);
+
+  try {
+    const detail = await api(`/conversations/${id}`);
+    $("chat-messages").innerHTML = "";
+    if (!detail.messages.length) {
+      $("chat-empty").classList.remove("hidden");
+      $("chat-status").textContent = "就绪";
+      return;
+    }
+    detail.messages.forEach((m) => renderStoredMessage(m));
+    $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+    $("chat-status").textContent = `已恢复 ${detail.messages.length} 条历史消息`;
+  } catch (e) {
+    $("chat-messages").innerHTML = "";
+    bubble.innerHTML = `<p style="color:var(--red)">恢复失败：${esc(e.message)}</p>`;
+    if (e.code === "NOT_FOUND") { conv.activeId = null; localStorage.removeItem(LS_KEY); renderConvList(); }
+  }
+}
+
+/** 渲染一条已落库的消息(与实时流式渲染保持一致的视觉). */
+function renderStoredMessage(m) {
+  if (m.role === "user") {
+    addMessage("user", esc(m.content));
+    return;
+  }
+  let html = renderAnswer(m.content);
+  if (m.error) {
+    html += `<div class="warn-note">这条回答生成失败：${esc(m.error)}</div>`;
+  } else if (m.refused) {
+    html += `<div class="warn-note">文档中没有找到相关内容，已拒答（避免编造）</div>`;
+  } else {
+    html += renderCitations(m.citations || [], false);
+  }
+  const bubble = addMessage("bot", html);
+
+  // 把时间/耗时/实际检索词挂在气泡下方 ——
+  // 回看历史时, "当时用哪个查询词检索的"是排查问题的关键信息
+  const meta = document.createElement("div");
+  meta.className = "conv-meta";
+  meta.style.marginTop = "6px";
+  const parts = [fmtTime(m.created_at)];
+  if (m.total_ms) parts.push(`${m.total_ms} ms`);
+  if (m.search_query) parts.push(`检索词: ${m.search_query}`);
+  meta.textContent = parts.join(" · ");
+  bubble.appendChild(meta);
+}
+
+function newConversation() {
+  conv.activeId = null;
+  localStorage.removeItem(LS_KEY);
+  $("chat-messages").innerHTML = "";
+  $("chat-empty").classList.remove("hidden");
+  $("chat-status").textContent = "新对话（发出第一条消息后自动保存）";
+  renderConvList();
+  $("question").focus();
+}
+
+async function renameConversation(id) {
+  const current = conv.list.find((c) => c.id === id);
+  const title = prompt("重命名对话：", current?.title || "");
+  if (title === null) return;
+  if (!title.trim()) { toast("标题不能为空", "err"); return; }
+  try {
+    await api(`/conversations/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title.trim() }),
+    });
+    toast("已重命名", "ok");
+    await loadConversations(conv.keyword);
+  } catch (e) { toast("重命名失败：" + e.message, "err", e.traceId); }
+}
+
+async function deleteConversation(id) {
+  if (!confirm("删除这个对话？\n\n对话会从列表中移除，历史消息保留在数据库中（软删）。")) return;
+  try {
+    await api(`/conversations/${id}`, { method: "DELETE" });
+    toast("对话已删除", "ok");
+    if (conv.activeId === id) newConversation();
+    await loadConversations(conv.keyword);
+  } catch (e) { toast("删除失败：" + e.message, "err", e.traceId); }
+}
+
 const cp = {
   docId: null, filename: "", strategies: [], limits: {},
   params: {}, stored: null, preview: null, mode: "stored", paramsDirty: false,
@@ -1031,9 +1240,30 @@ $("question").addEventListener("input", (e) => {
   e.target.style.height = "auto";
   e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
 });
-$("clear-chat").addEventListener("click", () => {
-  $("chat-messages").innerHTML = ""; chatHistory = [];
-  $("chat-empty").classList.remove("hidden"); $("chat-status").textContent = "就绪";
+
+/* ---------------------------- 会话侧边栏 ---------------------------- */
+$("conv-new").addEventListener("click", newConversation);
+
+let searchTimer = null;
+$("conv-search").addEventListener("input", (e) => {
+  // 输入防抖: 每敲一个字就发一次请求会打出一串无用查询
+  clearTimeout(searchTimer);
+  const value = e.target.value.trim();
+  searchTimer = setTimeout(() => loadConversations(value), 280);
+});
+
+$("conv-list").addEventListener("click", (ev) => {
+  const opBtn = ev.target.closest("[data-conv-op]");
+  if (opBtn) {
+    // 阻止冒泡, 否则会同时触发"打开会话"
+    ev.stopPropagation();
+    const id = opBtn.dataset.id;
+    if (opBtn.dataset.convOp === "rename") renameConversation(id);
+    else deleteConversation(id);
+    return;
+  }
+  const item = ev.target.closest("[data-conv]");
+  if (item && item.dataset.conv !== conv.activeId) openConversation(item.dataset.conv);
 });
 
 $("save-config").addEventListener("click", async (ev) => {
@@ -1067,7 +1297,16 @@ $("reset-config").addEventListener("click", async () => {
 });
 
 /* ============================== 启动 ============================== */
-checkHealth(); loadDocs(); loadChatParams();
+checkHealth();
+loadDocs();
+loadChatParams();
+loadConversations();
+
+// 刷新页面后自动恢复上次打开的会话 ——
+// 这是"服务端持久化"最直接的体感: 不用手动重新点开历史对话
+const lastConv = localStorage.getItem(LS_KEY);
+if (lastConv) openConversation(lastConv);
+
 setInterval(checkHealth, 30000);
 </script>
 </body>

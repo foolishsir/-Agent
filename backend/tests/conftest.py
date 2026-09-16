@@ -28,6 +28,22 @@ os.environ.setdefault("DOCMIND_TASK_MODE", "inline")
 # 测试不预热模型: 预热的意义是把加载开销前移, 测试里只会白白拖慢每一次运行
 os.environ.setdefault("DOCMIND_WARMUP_ON_STARTUP", "false")
 
+# ---------------------------------------------------------------------------
+# 数据库也必须指向临时目录!
+#
+# 这是一个真实踩到的严重问题: 最初只改了 data_dir / chroma 目录, 却漏了
+# DATABASE_URL. 由于 config.py 会把 sqlite 的相对路径解析到"项目根目录",
+# 测试实际上一直在往**开发库 data/docmind.db 里写数据** ——
+# 表现是"某个用例的计数断言偶尔多 1", 极难联想到是测试污染了开发数据.
+#
+# 这条必须在导入 app 之前设置. 注意用 as_posix(): sqlite URL 必须是正斜杠形式.
+# ---------------------------------------------------------------------------
+(_TMP_ROOT / "data").mkdir(parents=True, exist_ok=True)
+os.environ.setdefault(
+    "DOCMIND_DATABASE_URL",
+    f"sqlite+aiosqlite:///{(_TMP_ROOT / 'data' / 'docmind.db').as_posix()}",
+)
+
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import create_app  # noqa: E402
@@ -69,20 +85,38 @@ class FakeEmbeddingProvider:
 
 @pytest.fixture(scope="session", autouse=True)
 def fake_embedding() -> FakeEmbeddingProvider:
-    """全局替换 Embedding 提供方.
+    """全局替换 Embedding 提供方与精排器.
 
-    打补丁的目标是 ``app.services.ingest`` 模块内引用到的名字 ——
-    它在模块顶部做了 ``from ... import get_embedding_provider``,
-    所以必须替换**它自己命名空间里的引用**, 而不是原始模块.
-    这是一个很常见的 monkeypatch 踩坑点.
+    **必须逐个替换模块自己命名空间里的引用**. 这些模块在顶部做了
+    ``from app.services.embedding import get_embedding_provider``,
+    也就是说它们在**导入时**就把函数对象绑到了自己的模块命名空间里.
+    只替换原始模块的话, 这些模块仍然指向旧函数 ——
+    测试会静默地加载真实模型(实测单个用例耗时 19 秒),
+    而"测试跑得慢"这件事很容易被当成正常现象而放过.
+
+    精排器同样返回 None: 未启用时检索链路会退化为按融合分数截断,
+    结果依然确定且有意义, 但省掉了几秒的模型加载.
+    真实精排模型由手工端到端验证覆盖, 而不是放在单元测试里.
     """
     from app.services import ingest
+    from app.services.retrieval import pipeline as retrieval_pipeline
 
     provider = FakeEmbeddingProvider()
-    original = ingest.get_embedding_provider
-    ingest.get_embedding_provider = lambda: provider  # type: ignore[assignment]
+
+    patches: list[tuple[object, str, object]] = [
+        (ingest, "get_embedding_provider", lambda: provider),
+        (retrieval_pipeline, "get_embedding_provider", lambda: provider),
+        (retrieval_pipeline, "get_reranker", lambda: None),
+    ]
+
+    originals = [(target, name, getattr(target, name)) for target, name, _ in patches]
+    for target, name, replacement in patches:
+        setattr(target, name, replacement)
+
     yield provider
-    ingest.get_embedding_provider = original  # type: ignore[assignment]
+
+    for target, name, original in originals:
+        setattr(target, name, original)
 
 
 @pytest.fixture(scope="session")

@@ -47,7 +47,18 @@ class ChatRequest(BaseModel):
     )
     history: list[ChatTurn] = Field(
         default_factory=list,
-        description="历史对话(按时间正序)。用于多轮追问的指代消解",
+        description="历史对话(按时间正序)。**仅在无状态模式下使用**",
+    )
+    conversation_id: str | None = Field(
+        default=None,
+        description=(
+            "会话 id。传入则从数据库读取历史并把本轮问答落库; "
+            "不传则走无状态模式(由调用方自带 history), 适合脚本与评测批跑"
+        ),
+    )
+    create_conversation: bool = Field(
+        default=False,
+        description="没有 conversation_id 时是否自动新建会话(Web 界面首次提问用)",
     )
 
     def history_pairs(self) -> list[tuple[str, str]]:
@@ -80,6 +91,17 @@ async def chat_stream(
     错误只能作为事件推过去. 漏处理的话, 用户会看到一个永远停在半句的回答.
     """
 
+    # 首次提问时按需自动建会话 —— 前端不必先调一次"新建会话"再提问,
+    # 少一次往返, 也避免了"新建了会话但用户没提问"留下的空会话.
+    conversation_id = payload.conversation_id
+    if not conversation_id and payload.create_conversation:
+        from app.services import conversation_service  # noqa: PLC0415
+
+        created = await conversation_service.create_conversation(
+            session, user_id=user_id, doc_ids=payload.doc_ids
+        )
+        conversation_id = created.id
+
     async def event_generator() -> AsyncIterator[dict[str, str]]:
         try:
             async for event in answer_stream(
@@ -88,6 +110,7 @@ async def chat_stream(
                 user_id=user_id,
                 doc_ids=payload.doc_ids,
                 history=payload.history_pairs(),
+                conversation_id=conversation_id,
             ):
                 yield _sse(event.event, event.data)
         except Exception as exc:  # noqa: BLE001 - 生成器内异常无法再走全局处理器
@@ -125,6 +148,15 @@ async def chat(
     citations: list[dict[str, Any]] = []
     stages: list[dict[str, Any]] = []
     error: dict[str, Any] | None = None
+    conversation_id = payload.conversation_id
+
+    if not conversation_id and payload.create_conversation:
+        from app.services import conversation_service  # noqa: PLC0415
+
+        created = await conversation_service.create_conversation(
+            session, user_id=user_id, doc_ids=payload.doc_ids
+        )
+        conversation_id = created.id
 
     async for event in answer_stream(
         session,
@@ -132,8 +164,11 @@ async def chat(
         user_id=user_id,
         doc_ids=payload.doc_ids,
         history=payload.history_pairs(),
+        conversation_id=conversation_id,
     ):
-        if event.event == "stage":
+        if event.event == "conversation":
+            conversation_id = event.data.get("conversation_id") or conversation_id
+        elif event.event == "stage":
             stages.append(event.data)
         elif event.event == "sources":
             sources = event.data.get("sources", [])
@@ -152,6 +187,7 @@ async def chat(
                 "error": error,
                 "citations": [],
                 "sources": sources,
+                "conversation_id": conversation_id,
                 "stages": stages,
             }
         )
@@ -164,6 +200,7 @@ async def chat(
             "search_query": final.get("search_query", payload.question),
             "citations": citations,
             "sources": sources,
+            "conversation_id": conversation_id,
             "stages": stages,
             "timing": {
                 "first_token_ms": final.get("first_token_ms"),
