@@ -7,9 +7,13 @@
 ============================  ======  ==========================================
 POST                          /       上传 PDF(幂等, 内容 MD5 去重)
 GET                           /       分页列表(支持状态筛选)
+GET                           /chunk-strategies  可选分块策略与参数元数据
 GET                           /{id}   文档详情
 GET                           /{id}/status  精简状态(供前端高频轮询)
-POST                          /{id}/reindex 重新处理(修复失败或换分块参数后重跑)
+GET                           /{id}/chunks  查看**已落库**的分块内容
+POST                          /{id}/chunk-preview  按新参数试切, 不落库
+POST                          /{id}/chunk-apply    保存参数并重新处理
+POST                          /{id}/reindex 重新处理(修复失败后重跑)
 DELETE                        /{id}   删除(软删 + 清理向量 + 删文件)
 ============================  ======  ==========================================
 """
@@ -19,7 +23,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
-from fastapi import APIRouter, File, Query, UploadFile, status
+from fastapi import APIRouter, Body, File, Query, UploadFile, status
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.response import PageData, ok
@@ -30,7 +34,8 @@ from app.schemas.document import (
     UploadResponse,
     build_status_out,
 )
-from app.services import document_service
+from app.services import chunk_preview, document_service
+from app.services.chunking import AVAILABLE_STRATEGIES, STRATEGY_LABELS, ChunkParams
 from app.services.ingest import submit_ingest
 
 router = APIRouter()
@@ -114,6 +119,37 @@ async def list_documents(
     return ok(page_data.model_dump(mode="json"))
 
 
+# --------------------------------------------------------------------------- #
+# 分块查看与调参
+# --------------------------------------------------------------------------- #
+# 注意: 这条路由必须注册在 "/{doc_id}" **之前**.
+# FastAPI 按注册顺序匹配, 而 "/chunk-strategies" 完全符合 "/{doc_id}" 的形状 ——
+# 顺序反了的话, 请求会被当成"查询 id 为 chunk-strategies 的文档"并返回 404.
+# 这类"静态路径被动态路径吃掉"的问题很常见, 修法就是把静态路径放前面.
+@router.get("/chunk-strategies", summary="可选分块策略与参数元数据")
+async def chunk_strategies() -> dict[str, Any]:
+    """返回可选策略与当前生效的参数, 供前端渲染调参面板.
+
+    元数据由后端下发而不是前端硬编码: 新增一种策略只需要改后端, 前端一行都不用动.
+    """
+    current = ChunkParams.from_settings()
+    return ok(
+        {
+            "strategies": [
+                {"value": name, "label": STRATEGY_LABELS.get(name, name)}
+                for name in AVAILABLE_STRATEGIES
+            ],
+            "current": current.to_dict(),
+            "limits": {
+                "parent_size": {"min": 100, "max": 4000, "step": 50},
+                "child_size": {"min": 20, "max": 1200, "step": 10},
+                "overlap": {"min": 0, "max": 300, "step": 10},
+                "min_size": {"min": 0, "max": 200, "step": 5},
+            },
+        }
+    )
+
+
 @router.get("/{doc_id}", summary="文档详情")
 async def get_document(
     session: SessionDep,
@@ -174,4 +210,101 @@ async def delete_document(
     顺序是刻意设计的, 详见 ``document_service.delete_document`` 的文档字符串.
     """
     result = await document_service.delete_document(session, doc_id, user_id=user_id)
+    chunk_preview.invalidate(doc_id)
     return ok(DeleteResponse(**result).model_dump(mode="json"))  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- #
+# 分块查看与调参
+# --------------------------------------------------------------------------- #
+@router.get("/{doc_id}/chunks", summary="查看已落库的分块")
+async def list_chunks(
+    session: SessionDep,
+    user_id: CurrentUser,
+    doc_id: str,
+    limit: Annotated[int, Query(ge=1, le=1000, description="最多返回多少条")] = 300,
+) -> dict[str, Any]:
+    """查看这份文档**当初入库时实际使用**的分块结果.
+
+    与 ``chunk-preview`` 的区别: 这里读的是真实落库的数据,
+    预览接口是按新参数试切. 两者并排看, 才知道调参到底改变了什么.
+    """
+    await document_service.get_document(session, doc_id, user_id=user_id)
+    return ok(await chunk_preview.list_stored_chunks(session, doc_id, limit=limit))
+
+
+@router.post("/{doc_id}/chunk-preview", summary="按新参数预览分块(不落库)")
+async def preview_chunks(
+    session: SessionDep,
+    user_id: CurrentUser,
+    doc_id: str,
+    payload: Annotated[dict[str, Any] | None, Body()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+) -> dict[str, Any]:
+    """用指定参数重新切分并返回结果, **不写库、不算向量**.
+
+    这是调分块参数的正确姿势: 改参数 → 立刻看到切成什么样 → 满意再应用.
+    如果每次都要"改配置 → 重新上传 → 重新向量化"才能看到结果,
+    一轮几分钟, 根本没法做参数对比实验.
+
+    解析结果有内存缓存, 所以除了第一次(要解析 PDF), 后续调参都是毫秒级。
+    """
+    document = await document_service.get_document(session, doc_id, user_id=user_id)
+
+    params = chunk_preview.validate_params_or_raise(payload or {})
+    clean = chunk_preview.get_clean_document(doc_id, document.file_path, document.file_md5)
+
+    result = chunk_preview.preview(clean, doc_id, params, limit=limit)
+    result["doc_id"] = doc_id
+    result["char_count"] = clean.char_count
+    result["page_count"] = clean.page_count
+    return ok(result)
+
+
+@router.post("/{doc_id}/chunk-apply", summary="保存分块参数并重新处理")
+async def apply_chunk_params(
+    session: SessionDep,
+    user_id: CurrentUser,
+    doc_id: str,
+    payload: Annotated[dict[str, Any], Body()],
+) -> dict[str, Any]:
+    """把预览时满意的参数**保存为全局配置**, 并重新处理这份文档.
+
+    "保存为全局配置"和"立即重跑"是两件事, 一起做是有意的:
+    如果只存配置不重跑, 用户会以为已经生效了 —— 但已有文档的分块不会自动变化
+    (分块是在入库时确定的), 于是产生"改了参数却没效果"的困惑.
+
+    注意: 只重新处理当前这份文档. 其他已入库的文档仍使用旧参数,
+    需要用户在列表里逐个重新处理, 或者后续提供一个"批量重建"入口.
+    """
+    document = await document_service.get_document(session, doc_id, user_id=user_id)
+
+    params = chunk_preview.validate_params_or_raise(payload)
+
+    from app.services import config_service  # noqa: PLC0415
+
+    config_service.update_runtime_config(
+        {
+            "chunk_strategy": params.strategy,
+            "parent_chunk_size": params.parent_size,
+            "child_chunk_size": params.child_size,
+            "chunk_overlap": params.overlap,
+            "min_chunk_size": params.min_size,
+            "chunk_keep_heading": params.keep_heading_in_child,
+        }
+    )
+
+    from app.models.document import DocumentStatus  # noqa: PLC0415
+
+    document.status = DocumentStatus.PENDING.value
+    document.error_msg = None
+    await session.commit()
+
+    # 参数变了 → 之前缓存的解析结果虽然还能用(解析不受分块参数影响),
+    # 但为了让"重新处理"走一次完整链路, 这里仍然清掉缓存.
+    chunk_preview.invalidate(doc_id)
+
+    result = await submit_ingest(doc_id)
+    payload_out = IngestStatsOut(**vars(result)).model_dump(mode="json")
+    payload_out["applied_params"] = params.to_dict()
+    return ok(payload_out)

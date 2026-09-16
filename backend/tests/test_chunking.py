@@ -247,8 +247,10 @@ def test_child_size_must_be_smaller_than_parent() -> None:
     """子块比父块还大时父子结构失去意义, 必须显式报错而不是静默产出垃圾."""
     import pytest
 
+    from app.core.exceptions import ParamInvalidError
+
     doc = _doc(_para("内容"))
-    with pytest.raises(ValueError, match="child_chunk_size"):
+    with pytest.raises(ParamInvalidError, match="子块大小必须小于父块大小"):
         chunk_document(doc, doc_id="DOC10", parent_size=100, child_size=200)
 
 

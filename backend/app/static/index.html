@@ -168,6 +168,71 @@
 
   .note { background: var(--brand-soft); border: 1px solid #d3e0ff; border-radius: 8px; padding: 11px 14px; font-size: 12.5px; color: #24418a; margin-top: 16px; line-height: 1.65; }
 
+  /* ========================== 分块浏览器 ========================== */
+  .drawer-mask {
+    position: fixed; inset: 0; background: rgba(16,24,40,.45); z-index: 60;
+    display: flex; justify-content: flex-end; animation: fade .15s ease-out;
+  }
+  @keyframes fade { from { opacity: 0; } }
+  .drawer {
+    width: min(1080px, 96vw); height: 100%; background: var(--bg);
+    display: flex; flex-direction: column; box-shadow: -8px 0 32px rgba(16,24,40,.18);
+    animation: slidein .2s ease-out;
+  }
+  @keyframes slidein { from { transform: translateX(30px); opacity: .6; } }
+  .drawer-head {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .drawer-head h2 { margin: 0; font-size: 15.5px; font-weight: 600; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px 40px; }
+
+  .cp-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+  .cp-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 13px; margin-bottom: 14px; }
+  .cp-params .field label { font-size: 12px; }
+  .cp-params input, .cp-params select { padding: 6px 9px; font-size: 13px; }
+  .cp-sep { grid-column: 1 / -1; }
+  .cp-actions { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+
+  .cp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; margin-top: 15px; }
+  .stat { background: #fafbfc; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+  .stat .k { font-size: 11px; color: var(--faint); margin-bottom: 3px; }
+  .stat .v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 11px; font-weight: 400; color: var(--faint); }
+  .stat.warn { background: var(--amber-soft); border-color: #f0d9b0; }
+  .stat.warn .v { color: var(--amber); }
+  .stat.good { background: var(--green-soft); border-color: #c3e6d1; }
+  .stat.good .v { color: var(--green); }
+  .stat-arrow { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 15px; padding-top: 16px; }
+
+  .cp-tabs { display: flex; gap: 5px; margin: 18px 0 12px; }
+  .cp-tab { padding: 6px 14px; border-radius: 7px; font-size: 13px; border: 1px solid var(--border); background: var(--card); color: var(--dim); cursor: pointer; font-family: inherit; }
+  .cp-tab.active { background: var(--brand-soft); color: var(--brand); border-color: #d3e0ff; font-weight: 550; }
+
+  .chunk {
+    background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+    margin-bottom: 10px; overflow: hidden;
+  }
+  .chunk.parent { border-left: 3px solid var(--brand); }
+  .chunk.child { border-left: 3px solid #c7d2e3; margin-left: 16px; }
+  .chunk-head {
+    padding: 9px 13px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+    border-bottom: 1px solid #f1f3f6; background: #fcfcfd; font-size: 12px;
+  }
+  .chunk-tag { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-family: var(--mono); }
+  .chunk-tag.parent { background: var(--brand); color: #fff; }
+  .chunk-tag.child { background: #e4e7ec; color: var(--dim); }
+  .chunk-meta { color: var(--faint); font-family: var(--mono); font-size: 11.5px; }
+  .chunk-body { padding: 11px 14px; font-size: 13px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+  .chunk-body.embedding { background: var(--brand-soft); }
+  .chunk-toggle { background: none; border: none; color: var(--brand); font-size: 11.5px; cursor: pointer; font-family: inherit; padding: 0; margin-left: auto; }
+  .chunk-toggle:hover { text-decoration: underline; }
+  .chunk-empty { color: var(--faint); font-style: italic; }
+  .cp-loading { text-align: center; padding: 36px; color: var(--dim); }
+  .cp-loading .spin { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--brand); border-top-color: transparent; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  .legend { font-size: 11.5px; color: var(--faint); margin-bottom: 10px; line-height: 1.7; }
+  .legend b { color: var(--dim); }
+
   /* ============================ 提示 ============================ */
   #toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
   .toast { background: #1a2233; color: #fff; padding: 11px 15px; border-radius: 9px; font-size: 13px; max-width: 460px; box-shadow: 0 8px 24px rgba(16,24,40,.2); animation: rise .18s ease-out; line-height: 1.55; }
@@ -299,6 +364,7 @@
 </div>
 
 <div id="toast"></div>
+<div id="drawer-root"></div>
 
 <script>
 "use strict";
@@ -375,7 +441,8 @@ function renderDocs(items) {
       <td class="num">${d.char_count ? d.char_count.toLocaleString() : "—"}</td>
       <td class="num" style="font-size:12px">${fmtMs(d.parse_cost_ms)} / ${fmtMs(d.embed_cost_ms)}</td>
       <td><div class="actions">
-        <button class="btn" data-act="reindex" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>重新处理</button>
+        <button class="btn" data-act="chunks" data-id="${esc(d.id)}">分块</button>
+        <button class="btn" data-act="reindex" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>重跑</button>
         <button class="btn danger" data-act="delete" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>删除</button>
       </div></td>
     </tr>`).join("");
@@ -607,6 +674,279 @@ async function loadConfig(force = false) {
   catch (e) { $("cfg-body").innerHTML = `<div class="empty" style="color:var(--red)">加载配置失败：${esc(e.message)}</div>`; }
 }
 
+/* ========================== 分块浏览器 ========================== */
+const cp = {
+  docId: null, filename: "", strategies: [], limits: {},
+  params: {}, stored: null, preview: null, mode: "stored", paramsDirty: false,
+};
+
+async function openChunkDrawer(docId, filename) {
+  cp.docId = docId; cp.filename = filename; cp.mode = "stored";
+  cp.stored = null; cp.preview = null; cp.paramsDirty = false;
+  renderDrawer(`<div class="cp-loading"><span class="spin"></span>正在加载分块…</div>`);
+
+  try {
+    const [meta, stored] = await Promise.all([
+      api("/documents/chunk-strategies"),
+      api(`/documents/${docId}/chunks`),
+    ]);
+    cp.strategies = meta.strategies;
+    cp.limits = meta.limits;
+    cp.params = { ...meta.current };
+    cp.stored = stored;
+    renderDrawer();
+  } catch (e) {
+    renderDrawer(`<div class="cp-loading" style="color:var(--red)">加载失败：${esc(e.message)}</div>`);
+  }
+}
+
+function closeDrawer() { $("drawer-root").innerHTML = ""; cp.docId = null; }
+
+function renderDrawer(override) {
+  if (override !== undefined) {
+    $("drawer-root").innerHTML = `
+      <div class="drawer-mask" id="mask"><div class="drawer">
+        <div class="drawer-head"><h2>分块详情</h2><div class="spacer"></div>
+          <button class="btn" id="cp-close">关闭</button></div>
+        <div class="drawer-body">${override}</div>
+      </div></div>`;
+    $("cp-close").onclick = closeDrawer;
+    $("mask").onclick = (e) => { if (e.target.id === "mask") closeDrawer(); };
+    return;
+  }
+
+  const items = cp.mode === "preview"
+    ? [...(cp.preview?.parents || []), ...(cp.preview?.children || [])]
+    : [...(cp.stored?.parents || []), ...(cp.stored?.children || [])];
+
+  const stats = cp.mode === "preview" ? cp.preview?.stats : storedStats();
+  const total = cp.mode === "preview"
+    ? (cp.preview ? cp.preview.stats.parents + cp.preview.stats.children : 0)
+    : (cp.stored?.total || 0);
+
+  $("drawer-root").innerHTML = `
+  <div class="drawer-mask" id="mask"><div class="drawer">
+    <div class="drawer-head">
+      <h2>分块详情</h2>
+      <span class="hint">${esc(cp.filename)}</span>
+      <div class="spacer"></div>
+      <button class="btn" id="cp-close">关闭</button>
+    </div>
+    <div class="drawer-body">
+
+      <div class="cp-panel">
+        <div class="cp-params">
+          <div class="field"><label for="cp-strategy">分块策略</label>
+            <select id="cp-strategy" data-cp="strategy">
+              ${cp.strategies.map((s) => `<option value="${esc(s.value)}" ${s.value === cp.params.strategy ? "selected" : ""}>${esc(s.label)}</option>`).join("")}
+            </select></div>
+          ${cpNum("parent_size", "父块大小")}
+          ${cpNum("child_size", "子块大小")}
+          ${cpNum("overlap", "重叠长度")}
+          ${cpNum("min_size", "最小块长度")}
+          <div class="field cp-sep">
+            <label for="cp-separators">递归分隔符 <span class="badge" style="background:#f2f4f7;color:var(--faint)">仅 recursive 生效</span></label>
+            <input type="text" id="cp-separators" data-cp="separators_display" value="${esc(cp.params.separators_display || "")}">
+            <div class="desc">按优先级排列，用 | 分隔，换行写 \\n</div>
+          </div>
+        </div>
+        <div class="cp-actions">
+          <button class="btn primary" id="cp-preview">预览效果</button>
+          <button class="btn" id="cp-apply" ${cp.paramsDirty ? "" : "disabled"}>保存参数并重新处理</button>
+          <button class="btn" id="cp-restore">恢复当前配置</button>
+          <span class="hint" id="cp-msg">${cp.paramsDirty ? "参数已修改 — 点「预览效果」查看切分结果" : ""}</span>
+        </div>
+        ${stats ? renderStats(stats) : ""}
+      </div>
+
+      <div class="cp-tabs">
+        <button class="cp-tab ${cp.mode === "stored" ? "active" : ""}" data-cp-tab="stored">
+          已落库（${cp.stored?.total ?? 0}）
+        </button>
+        <button class="cp-tab ${cp.mode === "preview" ? "active" : ""}" data-cp-tab="preview" ${cp.preview ? "" : "disabled"}>
+          预览结果（${cp.preview ? cp.preview.stats.parents + cp.preview.stats.children : "未生成"}）
+        </button>
+      </div>
+
+      <div class="legend">
+        共 <b>${total}</b> 个分块。
+        <b>父块</b>是喂给大模型的上下文单位；<b>子块</b>是进向量库、参与检索的单位。
+        ${cp.mode === "preview" ? "预览结果<b>尚未落库</b>，点击「保存参数并重新处理」才会生效。" : "这是当初入库时实际使用的切分结果。"}
+      </div>
+
+      <div id="cp-list">${renderChunkList(items)}</div>
+    </div>
+  </div></div>`;
+
+  bindDrawer();
+}
+
+function cpNum(key, label) {
+  const lim = cp.limits[key] || {};
+  const val = cp.params[key];
+  return `<div class="field"><label for="cp-${key}">${label}
+      <span class="minmax">${lim.min ?? ""}${lim.max ? " ~ " + lim.max : ""}</span></label>
+    <input type="number" id="cp-${key}" data-cp="${key}" value="${val}"
+      ${lim.min !== undefined ? `min="${lim.min}"` : ""} ${lim.max !== undefined ? `max="${lim.max}"` : ""}
+      step="${lim.step || 1}"></div>`;
+}
+
+function storedStats() {
+  if (!cp.stored) return null;
+  const sizes = cp.stored.children.map((c) => c.char_count);
+  if (!sizes.length) return null;
+  const sum = sizes.reduce((a, b) => a + b, 0);
+  const parentSum = cp.stored.parents.reduce((a, b) => a + b.char_count, 0) || 1;
+  return {
+    parents: cp.stored.parents.length,
+    children: cp.stored.children.length,
+    child_chars: { min: Math.min(...sizes), max: Math.max(...sizes), avg: +(sum / sizes.length).toFixed(1) },
+    expansion_ratio: +(sum / parentSum).toFixed(3),
+    heading_coverage: +(cp.stored.children.filter((c) => c.section_path).length / sizes.length).toFixed(3),
+  };
+}
+
+function renderStats(s) {
+  const cc = s.child_chars || {};
+  const ratioWarn = s.expansion_ratio > 1.35;
+  const covGood = s.heading_coverage >= 0.8;
+  const avgWarn = cc.avg < 80 || cc.avg > 600;
+  return `<div class="cp-stats">
+    <div class="stat"><div class="k">父块</div><div class="v">${s.parents}</div></div>
+    <div class="stat"><div class="k">子块</div><div class="v">${s.children}</div></div>
+    <div class="stat ${avgWarn ? "warn" : ""}"><div class="k">子块平均长度</div><div class="v">${cc.avg}<small> 字</small></div></div>
+    <div class="stat"><div class="k">最短 / 最长</div><div class="v">${cc.min}<small> / ${cc.max}</small></div></div>
+    <div class="stat ${ratioWarn ? "warn" : ""}"><div class="k">字符膨胀率</div><div class="v">${s.expansion_ratio}<small>x</small></div></div>
+    <div class="stat ${covGood ? "good" : "warn"}"><div class="k">章节覆盖率</div><div class="v">${Math.round(s.heading_coverage * 100)}<small>%</small></div></div>
+  </div>
+  <div class="legend" style="margin:12px 0 0">
+    <b>怎么读这些数：</b>
+    平均长度 &lt;80 字说明切太碎；&gt;600 字说明语义被稀释。
+    膨胀率远大于 1.35 说明重叠配置过大，块之间高度冗余。
+    章节覆盖率低说明标题识别没生效（recursive / fixed 策略天然为 0，属正常）。
+  </div>`;
+}
+
+function renderChunkList(items) {
+  if (!items.length) return `<div class="chunk-empty" style="padding:30px;text-align:center">没有分块数据</div>`;
+
+  const parents = items.filter((i) => i.type === "parent").sort((a, b) => a.order_index - b.order_index);
+  const byParent = new Map();
+  items.filter((i) => i.type === "child").forEach((c) => {
+    const k = c.parent_id || "__none__";
+    if (!byParent.has(k)) byParent.set(k, []);
+    byParent.get(k).push(c);
+  });
+
+  let html = "";
+  parents.forEach((p, i) => {
+    html += chunkCard(p, `父块 ${i + 1}`);
+    (byParent.get(p.id) || []).sort((a, b) => a.order_index - b.order_index).forEach((c, j) => {
+      html += chunkCard(c, `子块 ${i + 1}.${j + 1}`);
+    });
+  });
+  // 没有父块归属的子块(理论上不该出现, 兜底展示)
+  (byParent.get("__none__") || []).forEach((c) => { html += chunkCard(c, "子块（无父块）"); });
+  return html;
+}
+
+function chunkCard(c, label) {
+  const isChild = c.type === "child";
+  const pages = c.page_start === c.page_end ? `P${c.page_start}` : `P${c.page_start}-${c.page_end}`;
+  const showEmbedding = isChild && c.embedding_differs;
+  return `<div class="chunk ${c.type}" data-chunk="${esc(c.id)}">
+    <div class="chunk-head">
+      <span class="chunk-tag ${c.type}">${c.type === "parent" ? "父" : "子"}</span>
+      <span>${esc(label)}</span>
+      <span class="chunk-meta">${esc(pages)} · ${c.char_count} 字${c.section_path ? " · " + esc(c.section_path) : ""}</span>
+      ${showEmbedding ? `<button class="chunk-toggle" data-toggle="${esc(c.id)}">看送入向量的文本</button>` : ""}
+    </div>
+    <div class="chunk-body" id="body-${esc(c.id)}">${esc(c.content)}</div>
+    ${showEmbedding ? `<div class="chunk-body embedding hidden" id="emb-${esc(c.id)}">${esc(c.embedding_text)}</div>` : ""}
+  </div>`;
+}
+
+function collectCpParams() {
+  const out = {};
+  document.querySelectorAll("#drawer-root [data-cp]").forEach((el) => {
+    const key = el.dataset.cp;
+    if (key === "separators_display") out.separators = el.value;
+    else if (el.type === "number") out[key] = parseInt(el.value, 10);
+    else out[key] = el.value;
+  });
+  return out;
+}
+
+function bindDrawer() {
+  $("cp-close").onclick = closeDrawer;
+  $("mask").onclick = (e) => { if (e.target.id === "mask") closeDrawer(); };
+
+  // 参数一改就标记为"未预览", 避免用户改了参数却没点预览就以为生效了
+  document.querySelectorAll("#drawer-root [data-cp]").forEach((el) => {
+    el.addEventListener("input", () => {
+      cp.paramsDirty = true;
+      $("cp-msg").textContent = "参数已修改 — 点「预览效果」查看切分结果";
+      const applyBtn = $("cp-apply");
+      if (applyBtn) applyBtn.disabled = false;
+    });
+  });
+
+  $("cp-preview").onclick = async (ev) => {
+    ev.target.disabled = true;
+    ev.target.textContent = "切分中…";
+    try {
+      const body = collectCpParams();
+      const r = await api(`/documents/${cp.docId}/chunk-preview`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      cp.preview = r;
+      cp.params = { ...r.stats.params };
+      cp.mode = "preview";
+      cp.paramsDirty = true;
+      renderDrawer();
+    } catch (e) {
+      toast("预览失败：" + e.message, "err", e.traceId);
+      ev.target.disabled = false;
+      ev.target.textContent = "预览效果";
+    }
+  };
+
+  $("cp-apply").onclick = async (ev) => {
+    if (!confirm("保存参数并重新处理这份文档？\n\n会重新解析、分块、向量化，覆盖现有数据。")) return;
+    ev.target.disabled = true;
+    ev.target.textContent = "处理中…";
+    try {
+      const r = await api(`/documents/${cp.docId}/chunk-apply`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collectCpParams()),
+      });
+      toast(`已应用并重新处理：${r.parent_chunks} 父块 / ${r.child_chunks} 子块`, "ok");
+      closeDrawer();
+      loadDocs();
+    } catch (e) {
+      toast("应用失败：" + e.message, "err", e.traceId);
+      ev.target.disabled = false;
+      ev.target.textContent = "保存参数并重新处理";
+    }
+  };
+
+  $("cp-restore").onclick = () => { openChunkDrawer(cp.docId, cp.filename); };
+
+  document.querySelectorAll("[data-cp-tab]").forEach((tab) => {
+    tab.onclick = () => { cp.mode = tab.dataset.cpTab; renderDrawer(); };
+  });
+
+  document.querySelectorAll("[data-toggle]").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.toggle;
+      const body = $("body-" + id), emb = $("emb-" + id);
+      const showing = !emb.classList.contains("hidden");
+      emb.classList.toggle("hidden", showing);
+      body.classList.toggle("hidden", !showing);
+      btn.textContent = showing ? "看送入向量的文本" : "看原文";
+    };
+  });
+}
+
 /* ============================ 事件绑定 ============================ */
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -652,8 +992,18 @@ document.addEventListener("click", async (ev) => {
   }
 
   const btn = ev.target.closest("button[data-act]");
-  if (!btn || busy) return;
+  if (!btn) return;
   const id = btn.dataset.id, act = btn.dataset.act;
+
+  // 查看分块是只读操作, 不受"正在上传/删除"的忙碌状态限制
+  if (act === "chunks") {
+    const row = btn.closest("tr");
+    const name = row?.querySelector(".fname")?.textContent || "";
+    openChunkDrawer(id, name);
+    return;
+  }
+
+  if (busy) return;
 
   if (act === "delete") {
     if (!confirm("确认删除这份文档？\n\n会同时清理向量库中的分块与原始文件。")) return;

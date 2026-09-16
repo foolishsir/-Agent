@@ -34,68 +34,40 @@
 from __future__ import annotations
 
 import re
-from dataclasses import replace
 
-from app.core.config import settings
 from app.core.logging import get_logger, log_kv
 from app.models.document import ChunkType
-from app.services.chunking.base import Chunk, ChunkingResult, make_child_id, make_parent_id
+from app.services.chunking.base import (
+    Chunk,
+    ChunkingResult,
+    coalesce_short_chunks,
+    make_child_id,
+    make_parent_id,
+)
+from app.services.chunking.params import ChunkParams, split_sentences
 from app.services.parser.base import CleanDocument, Paragraph
 
 logger = get_logger("docmind.chunking")
-
-#: 句子边界. 中英文混排都要覆盖.
-#: 英文句号只在后面跟空白+大写字母时才算句末, 避免把 "3.2" "v1.0" 这类切碎.
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？；!?;])|(?<=\.)(?=\s+[A-Z])|\n+")
-
-#: 段落内部的硬换行(清洗后仍保留的)也视为句子边界
-_HARD_BREAK_RE = re.compile(r"\n+")
 
 #: section_path 字段长度上限(与 ORM 的 String(512) 对齐)
 _MAX_SECTION_PATH = 500
 
 
-def split_sentences(text: str) -> list[str]:
-    """按句子切分, 保持句子完整.
-
-    为什么要按句子而不是按字符切: 在句子中间切断会破坏语义,
-    而 embedding 是按整块计算的, 半句话会严重稀释向量.
-    """
-    parts = _SENTENCE_SPLIT_RE.split(_HARD_BREAK_RE.sub("\n", text))
-    return [p.strip() for p in parts if p and p.strip()]
-
-
-def chunk_document(
-    document: CleanDocument,
-    doc_id: str,
-    *,
-    parent_size: int | None = None,
-    child_size: int | None = None,
-    overlap: int | None = None,
-) -> ChunkingResult:
+def chunk_parent_child(document: CleanDocument, doc_id: str, params: ChunkParams) -> ChunkingResult:
     """把清洗后的文档切成父子块.
 
-    Args:
-        document: 清洗后的文档(段落自带页码)
-        doc_id: 文档 id, 用于生成确定性 chunk id
-        parent_size / child_size / overlap: 覆盖配置的切分参数(测试与实验用)
+    这是默认策略, 也是效果最好的一种:
+    父块按"章节标题 + 长度"切, 子块在父块内按句子边界切并带重叠.
+    子块进向量库保检索精度, 父块喂给模型保上下文完整.
     """
-    parent_size = parent_size or settings.parent_chunk_size
-    child_size = child_size or settings.child_chunk_size
-    overlap = settings.chunk_overlap if overlap is None else overlap
-
-    if child_size >= parent_size:
-        raise ValueError(
-            f"child_chunk_size({child_size}) 必须小于 parent_chunk_size({parent_size}), "
-            "否则子块比父块还大, 父子块结构失去意义"
-        )
+    params.validate()
 
     parents: list[Chunk] = []
     children: list[Chunk] = []
 
     parent_index = 0
     for section_path, paragraphs in _iter_sections(document):
-        for group in _group_paragraphs(paragraphs, parent_size):
+        for group in _group_paragraphs(paragraphs, params.parent_size):
             parent_id = make_parent_id(doc_id, parent_index)
             parent_text = "\n\n".join(p.text for p in group)
 
@@ -115,7 +87,12 @@ def chunk_document(
 
             children.extend(
                 _split_parent_into_children(
-                    group, doc_id, parent_index, parent_id, section_path, child_size, overlap
+                    group,
+                    doc_id,
+                    parent_index,
+                    parent_id,
+                    section_path,
+                    params,
                 )
             )
 
@@ -125,6 +102,7 @@ def chunk_document(
     log_kv(
         logger,
         "chunking.done",
+        strategy=params.strategy,
         file=document.filename,
         parents=len(parents),
         children=len(children),
@@ -273,8 +251,7 @@ def _split_parent_into_children(
     parent_index: int,
     parent_id: str,
     section_path: str | None,
-    child_size: int,
-    overlap: int,
+    params: ChunkParams,
 ) -> list[Chunk]:
     """把父块切成带重叠的子块.
 
@@ -282,6 +259,9 @@ def _split_parent_into_children(
     这样子块的 ``page_start/page_end`` 才是准确的, 而不是笼统地继承父块范围.
     引用溯源要精确到页, 这一步不能糊弄.
     """
+    child_size = params.child_size
+    overlap = params.overlap
+
     units: list[tuple[str, int]] = []
     for paragraph in group:
         sentences = split_sentences(paragraph.text)
@@ -341,48 +321,7 @@ def _split_parent_into_children(
                 )
             )
 
-    return _coalesce_short_chunks(chunks, settings.min_chunk_size)
-
-
-def _coalesce_short_chunks(chunks: list[Chunk], min_size: int) -> list[Chunk]:
-    """把过短的子块并入相邻块.
-
-    为什么必须处理: 段落末尾常会剩下一两个短句(如 "已验证。"), 单独成块后
-    会变成一条 5~15 字的向量记录. 这种块的 embedding 毫无信息量, 却会:
-    1. 污染检索结果 —— 它可能因为"语义模糊"而意外匹配到很多无关查询
-    2. 拉低 Recall@K 的可解释性 —— 命中了一个几乎没内容的块
-
-    做法是**合并**而不是丢弃: 丢弃会丢信息, 合并只是改变切分边界.
-    合并时保留前一个块的 id, 因此 id 依然是确定性生成的, 不影响幂等性.
-    """
-    if len(chunks) <= 1:
-        return chunks
-
-    merged: list[Chunk] = []
-    for chunk in chunks:
-        if merged and chunk.char_count < min_size:
-            previous = merged[-1]
-            merged[-1] = replace(
-                previous,
-                content=previous.content + chunk.content,
-                page_start=min(previous.page_start, chunk.page_start),
-                page_end=max(previous.page_end, chunk.page_end),
-            )
-        else:
-            merged.append(chunk)
-
-    # 首块过短(父块开头就是一个短句)时并入后一块 —— 它没有"前一块"可合并
-    if len(merged) >= 2 and merged[0].char_count < min_size:
-        first, second = merged[0], merged[1]
-        merged[1] = replace(
-            second,
-            content=first.content + second.content,
-            page_start=min(first.page_start, second.page_start),
-            page_end=max(first.page_end, second.page_end),
-        )
-        merged.pop(0)
-
-    return merged
+    return coalesce_short_chunks(chunks, params.min_size)
 
 
 def _carry_overlap(

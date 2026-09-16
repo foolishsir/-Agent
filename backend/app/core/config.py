@@ -105,12 +105,22 @@ class Settings(BaseSettings):
     rerank_min_score: float = 0.0
 
     # ------------------------------------------------------------------ #
-    # 分块策略 (父子块 / Small-to-Big)
+    # 分块策略
     # ------------------------------------------------------------------ #
+    # parent_child = 章节感知的父子块(推荐)
+    # recursive    = 按分隔符优先级递归切分
+    # fixed        = 固定长度硬切(对比实验用的基线)
+    chunk_strategy: str = "parent_child"
     parent_chunk_size: int = 1500
     child_chunk_size: int = 300
     chunk_overlap: int = 50
+    #: 过短的分块会被并入相邻块, 避免产生无信息量的向量
     min_chunk_size: int = 30
+    #: 递归切分的分隔符优先级, 用 | 分隔(见 chunking/params.py 的说明)
+    chunk_separators: str = "\\n\\n|\\n|。|！|？|；|…|，"
+    #: 是否把章节标题保留在子块正文里.
+    #: False(默认) 时正文保持干净, 靠 embedding_text 拼章节路径来补语境
+    chunk_keep_heading: bool = False
 
     # ------------------------------------------------------------------ #
     # 检索
