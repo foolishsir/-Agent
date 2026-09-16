@@ -148,6 +148,61 @@
   .msg.bot .bubble { background: #f7f8fa; border: 1px solid var(--border); border-top-left-radius: 3px; }
   .bubble p { margin: 0 0 8px; }
   .bubble p:last-child { margin-bottom: 0; }
+
+  /* ------------------ 答案里的 Markdown 排版 ------------------ */
+  /* 全部限定在 .bubble 内, 避免 h1/pre/table 这些标签的默认样式
+     污染页面其他部分 */
+  .bubble > *:first-child { margin-top: 0; }
+  .bubble > *:last-child { margin-bottom: 0; }
+  .bubble h1, .bubble h2, .bubble h3, .bubble h4, .bubble h5, .bubble h6 {
+    margin: 16px 0 8px; line-height: 1.4; font-weight: 650;
+  }
+  .bubble h1 { font-size: 18px; }
+  .bubble h2 { font-size: 16.5px; }
+  .bubble h3 { font-size: 15px; }
+  .bubble h4, .bubble h5, .bubble h6 { font-size: 14px; color: var(--dim); }
+
+  .bubble ul, .bubble ol { margin: 8px 0; padding-left: 22px; }
+  .bubble li { margin: 3px 0; }
+  .bubble li > ul, .bubble li > ol { margin: 3px 0; }
+
+  .bubble strong { font-weight: 650; }
+  .bubble del { color: var(--faint); }
+
+  .bubble code {
+    background: #eceff3; padding: 1.5px 5px; border-radius: 4px;
+    font-family: var(--mono); font-size: 12.5px; border: 1px solid #e0e4ea;
+  }
+  .bubble pre {
+    background: #1e2430; color: #e6edf3; border-radius: 8px;
+    padding: 12px 14px; overflow-x: auto; margin: 10px 0; position: relative;
+  }
+  .bubble pre code {
+    background: none; border: none; padding: 0; color: inherit;
+    font-size: 12.5px; line-height: 1.65;
+  }
+  .bubble pre[data-lang]::before {
+    content: attr(data-lang); position: absolute; top: 0; right: 0;
+    font-size: 10px; padding: 2px 8px; color: #8b98a8;
+    background: rgba(255,255,255,.06); border-bottom-left-radius: 6px;
+    font-family: var(--mono);
+  }
+
+  .bubble blockquote {
+    margin: 10px 0; padding: 6px 0 6px 12px; color: var(--dim);
+    border-left: 3px solid #d3dae3;
+  }
+  .bubble hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+  .bubble a { color: var(--brand); }
+
+  .bubble .md-table {
+    width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px;
+  }
+  .bubble .md-table th, .bubble .md-table td {
+    border: 1px solid var(--border); padding: 6px 10px; text-align: left;
+  }
+  .bubble .md-table th { background: #f7f8fa; font-weight: 600; }
+
   .cite-ref {
     display: inline-block; min-width: 17px; text-align: center;
     background: var(--brand-soft); color: var(--brand); border-radius: 4px;
@@ -552,11 +607,205 @@ function addMessage(role, html) {
   return el.querySelector(".bubble");
 }
 
-/** 把答案里的 [1] 变成可点击的角标，并保留换行。 */
+/* ========================== Markdown 渲染 ==========================
+ * 大模型输出的是 Markdown（**加粗**、- 列表、```代码块```），
+ * 直接塞进 innerHTML 会原样显示成星号和井号，可读性极差。
+ *
+ * 这里自己写一个轻量渲染器，而不是引 marked.js / markdown-it：
+ * 1. 本项目是**零依赖单文件**，引 CDN 会让离线环境直接跑不了
+ * 2. 只需要覆盖大模型实际会用的子集（列表/加粗/代码/标题/表格）
+ * 3. **安全性可控** —— 先整体转义，再做替换，
+ *    任何原始 HTML（包括文档里夹带的 <script>）都不可能逃逸成标签。
+ *
+ * 处理顺序很关键：
+ *   抽取代码块 → 整体转义 → 行内替换 → 引用角标 → 块级聚合 → 还原代码块
+ * 先抽代码块是因为它的内容**不应该**被加粗/列表等规则改写。
+ * ========================================================================= */
+
+/** 把 [1] / [1,2] / [1-3] 变成可点击的引用角标 */
+function renderCiteBadges(text) {
+  return text.replace(
+    /\[(\d+(?:\s*[,\-–]\s*\d+)*)\]/g,
+    (m, n) => `<span class="cite-ref" data-cite="${esc(n)}">${esc(n)}</span>`
+  );
+}
+
+/** 行内标记：代码 / 加粗 / 斜体 / 删除线 / 链接 */
+function renderInline(text) {
+  return text
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    // 链接必须在引用角标之前处理：[文本](url) 与 [1] 形状相似，
+    // 先匹配更具体的链接形式，剩下的才是引用编号
+    .replace(
+      /\[([^\][\n]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    )
+    .replace(/~~([^~\n]+)~~/g, "<del>$1</del>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+    // 单个星号斜体：要求两侧不是星号，避免把 ** 的残留吃掉
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/(^|[^_\w])_([^_\n]+)_(?![\w_])/g, "$1<em>$2</em>");
+}
+
+function renderMarkdown(src) {
+  if (!src) return "";
+
+  // ---------------- ① 抽取代码块 ----------------
+  const blocks = [];
+  let text = String(src).replace(/```([\w+#.-]*)\n?([\s\S]*?)```/g, (_m, lang, code) => {
+    blocks.push({ lang: lang || "", code });
+    return `\u0000CB${blocks.length - 1}\u0000`;
+  });
+
+  // ---------------- ② 整体转义（安全边界） ----------------
+  // 这一步之后文本里不可能再有可执行的标签，后续所有替换都是安全的
+  text = esc(text);
+
+  // ---------------- ③ 行内标记 + 引用角标 ----------------
+  const lines = text.split("\n").map((line) => renderCiteBadges(renderInline(line)));
+
+  // ---------------- ④ 块级聚合 ----------------
+  const out = [];
+  let list = null;      // { tag: 'ul' | 'ol', items: [] }
+  let quote = null;     // 引用块缓冲
+  let para = [];        // 段落缓冲
+
+  const flushPara = () => {
+    if (para.length) {
+      out.push(`<p>${para.join("<br>")}</p>`);
+      para = [];
+    }
+  };
+  const flushList = () => {
+    if (list) {
+      out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`);
+      list = null;
+    }
+  };
+  const flushQuote = () => {
+    if (quote) {
+      out.push(`<blockquote>${quote.join("<br>")}</blockquote>`);
+      quote = null;
+    }
+  };
+  const flushAll = () => { flushPara(); flushList(); flushQuote(); };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    if (!line) { flushAll(); continue; }
+
+    // 代码块占位符
+    const cb = line.match(/^\u0000CB(\d+)\u0000$/);
+    if (cb) {
+      flushAll();
+      const block = blocks[Number(cb[1])];
+      const langAttr = block.lang ? ` data-lang="${esc(block.lang)}"` : "";
+      out.push(`<pre${langAttr}><code>${esc(block.code.replace(/\n$/, ""))}</code></pre>`);
+      continue;
+    }
+
+    // 分割线
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) { flushAll(); out.push("<hr>"); continue; }
+
+    // 标题
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { flushAll(); const lv = h[1].length; out.push(`<h${lv}>${h[2]}</h${lv}>`); continue; }
+
+    // 引用
+    const q = line.match(/^&gt;\s?(.*)$/);
+    if (q) { flushPara(); flushList(); (quote = quote || []).push(q[1]); continue; }
+    flushQuote();
+
+    // 无序列表（- * + 但排除 ** 加粗开头）
+    const ul = line.match(/^[-*+]\s+(.*)$/);
+    if (ul && !/^\*\*/.test(line)) {
+      flushPara();
+      if (!list || list.tag !== "ul") { flushList(); list = { tag: "ul", items: [] }; }
+      list.items.push(ul[1]);
+      continue;
+    }
+
+    // 有序列表
+    const ol = line.match(/^\d+[.)]\s+(.*)$/);
+    if (ol) {
+      flushPara();
+      if (!list || list.tag !== "ol") { flushList(); list = { tag: "ol", items: [] }; }
+      list.items.push(ol[1]);
+      continue;
+    }
+
+    // 表格行：累积到段落里, 表格交给后面整体处理
+    flushList();
+    para.push(line);
+  }
+  flushAll();
+
+  let html = out.join("");
+
+  // ---------------- ⑤ 表格（在块级聚合之后整体替换） ----------------
+  html = html.replace(
+    /<p>((?:\|.*\|(?:\s*<br>)?)+)<\/p>/g,
+    (match, body) => {
+      const rows = body.split(/<br>/).map((r) => r.trim()).filter((r) => r.startsWith("|"));
+      if (rows.length < 2) return match;
+      // 第二行必须是分隔行 |---|---| 才认为是表格
+      if (!/^\|[\s:|-]+\|$/.test(rows[1])) return match;
+
+      const cells = (row) =>
+        row.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const head = cells(rows[0]);
+      const dataRows = rows.slice(2).map(cells);
+
+      const thead = `<thead><tr>${head.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
+      const tbody = `<tbody>${dataRows
+        .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+        .join("")}</tbody>`;
+      return `<table class="md-table">${thead}${tbody}</table>`;
+    }
+  );
+
+  // ---------------- ⑥ 还原代码块 ----------------
+  html = html.replace(/\u0000CB(\d+)\u0000/g, (_m, i) => {
+    const block = blocks[Number(i)];
+    const langAttr = block.lang ? ` data-lang="${esc(block.lang)}"` : "";
+    return `<pre${langAttr}><code>${esc(block.code.replace(/\n$/, ""))}</code></pre>`;
+  });
+
+  return html;
+}
+
+/** 流式渲染器: 按帧节流.
+ *
+ * 逐 token 重跑一遍 Markdown 解析在长回答上会明显掉帧 ——
+ * 一次解析是几十个正则替换, 而一段几百字的回答可能有上百个 token.
+ * 用 requestAnimationFrame 把重绘压到"每帧最多一次", 视觉上完全看不出差别,
+ * 渲染次数却能少一个数量级.
+ */
+function makeStreamRenderer(bubble) {
+  let pending = false, latest = "", stopped = false;
+  const paint = () => {
+    pending = false;
+    if (stopped) return;
+    bubble.innerHTML = renderAnswer(latest);
+    $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  };
+  return {
+    push(text) {
+      latest = text;
+      if (pending || stopped) return;
+      pending = true;
+      requestAnimationFrame(paint);
+    },
+    // 结束时调用: 阻止还在排队的帧覆盖掉最终内容
+    stop() { stopped = true; },
+  };
+}
+
+/** 渲染答案: Markdown + 可点击引用角标 */
 function renderAnswer(text) {
-  return esc(text)
-    .replace(/\[(\d+(?:\s*[,\-–]\s*\d+)*)\]/g, (m, n) => `<span class="cite-ref" data-cite="${esc(n)}">${esc(n)}</span>`)
-    .split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+  return renderMarkdown(text);
 }
 
 function renderCitations(citations, corrected) {
@@ -587,6 +836,7 @@ async function ask(question) {
 
   const bubble = addMessage("bot", `<div class="stage" id="stage-live"><span class="spin"></span><span>正在检索…</span></div>`);
   const stageBox = bubble.querySelector("#stage-live");
+  const stream = makeStreamRenderer(bubble);
   let answer = "", citations = [], corrected = false;
   let newConversationId = null;
 
@@ -651,14 +901,17 @@ async function ask(question) {
         $("chat-status").textContent = `检索到 ${payload.sources.length} 段相关内容`;
       } else if (ev === "token") {
         answer += payload.text;
-        bubble.innerHTML = renderAnswer(answer);
-        $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+        stream.push(answer);
       } else if (ev === "citations") {
         citations = payload.citations || [];
         corrected = !!payload.answer_corrected;
       } else if (ev === "done") {
         answer = payload.answer ?? answer;
+        // 先停掉节流的渲染器, 再写最终内容 ——
+        // 否则还在排队的那一帧会把带引用卡片的结果覆盖掉
+        stream.stop();
         bubble.innerHTML = renderAnswer(answer) + renderCitations(citations, corrected);
+        $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
         $("chat-status").textContent = payload.refused
           ? "已拒答（文档中无相关内容）· 已保存到历史"
           : `完成 · 首字 ${payload.first_token_ms ?? "-"} ms · 总计 ${payload.total_ms ?? "-"} ms · 已保存到历史`;
@@ -670,6 +923,7 @@ async function ask(question) {
     // 本轮跑完后刷新侧边栏: 新会话要出现在列表里, 已有会话的"消息数/时间"也要更新
     loadConversations(conv.keyword);
   } catch (e) {
+    stream.stop();
     if (!answer) bubble.innerHTML = `<p style="color:var(--red)">出错了：${esc(e.message)}</p>`;
     else bubble.innerHTML = renderAnswer(answer) + `<div class="warn-note">生成中断：${esc(e.message)}</div>`;
     toast("问答失败：" + e.message, "err");
