@@ -65,6 +65,13 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # 建表 —— 必须在任何请求到来之前完成, 否则第一个请求会撞上"表不存在"
     await init_db()
 
+    # 应用上次在 Web 界面上保存的配置.
+    # 必须在建表/预热**之前**执行: 界面上的配置(如 embedding_device=cuda)
+    # 会影响预热时加载模型的设备选择.
+    from app.services import config_service  # noqa: PLC0415
+
+    config_service.load_runtime_overrides()
+
     if settings.warmup_on_startup:
         # 预热本地模型: 把几十秒的加载开销从"第一个用户请求"移到"进程启动".
         # 不预热的话, 第一个提问的用户会看到一次莫名其妙的超时.

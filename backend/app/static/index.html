@@ -6,210 +6,175 @@
 <title>DocMind · 文档智能问答</title>
 <style>
   :root {
-    --bg: #f6f7f9;
-    --card: #ffffff;
-    --border: #e4e7ec;
-    --text: #1a2233;
-    --text-dim: #667085;
-    --text-faint: #98a2b3;
-    --brand: #2f6df6;
-    --brand-soft: #eef3ff;
-    --green: #12a150;
-    --green-soft: #e8f7ee;
-    --amber: #b25e09;
-    --amber-soft: #fdf3e2;
-    --red: #d92d20;
-    --red-soft: #fdecea;
+    --bg: #f6f7f9; --card: #fff; --border: #e4e7ec;
+    --text: #1a2233; --dim: #667085; --faint: #98a2b3;
+    --brand: #2f6df6; --brand-soft: #eef3ff;
+    --green: #12a150; --green-soft: #e8f7ee;
+    --amber: #b25e09; --amber-soft: #fdf3e2;
+    --red: #d92d20; --red-soft: #fdecea;
     --radius: 10px;
-    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .1);
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.1);
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   }
-
   * { box-sizing: border-box; }
-
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
+    margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px 60px; }
 
-  /* ------------------------------- 布局 ------------------------------- */
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px 60px; }
-
-  header {
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 20;
-  }
-  header .inner {
-    max-width: 1080px; margin: 0 auto; padding: 14px 20px;
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  }
-  .logo {
-    display: flex; align-items: center; gap: 9px;
-    font-size: 17px; font-weight: 650; letter-spacing: -.2px;
-  }
-  .logo-mark {
-    width: 26px; height: 26px; border-radius: 7px;
-    background: linear-gradient(135deg, var(--brand), #6f9bff);
-    display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 700;
-  }
-  .logo small { font-weight: 400; color: var(--text-faint); font-size: 12px; margin-left: 2px; }
-
+  /* ============================ 顶栏 ============================ */
+  header { background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+  header .inner { max-width: 1120px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 650; letter-spacing: -.2px; }
+  .logo-mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, var(--brand), #6f9bff); display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 700; }
+  .logo small { font-weight: 400; color: var(--faint); font-size: 12px; margin-left: 2px; }
   .tabs { display: flex; gap: 4px; margin-left: 8px; }
-  .tab {
-    padding: 6px 13px; border-radius: 7px; font-size: 13px;
-    color: var(--text-dim); cursor: pointer; border: none; background: none;
-    display: flex; align-items: center; gap: 6px;
-  }
+  .tab { padding: 6px 14px; border-radius: 7px; font-size: 13px; color: var(--dim); cursor: pointer; border: none; background: none; font-family: inherit; }
+  .tab:hover { background: #f2f4f7; }
   .tab.active { background: var(--brand-soft); color: var(--brand); font-weight: 550; }
-  .tab:disabled { color: var(--text-faint); cursor: not-allowed; }
-  .tab .badge {
-    font-size: 10px; padding: 1px 5px; border-radius: 4px;
-    background: var(--amber-soft); color: var(--amber); font-weight: 500;
-  }
   .spacer { flex: 1; }
-
-  .health {
-    display: flex; align-items: center; gap: 7px;
-    font-size: 12px; color: var(--text-dim);
-    padding: 5px 11px; border-radius: 20px; background: var(--bg);
-    border: 1px solid var(--border);
-  }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+  .health { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); padding: 5px 11px; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); cursor: help; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
   .dot.ok { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
   .dot.warn { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-soft); }
   .dot.bad { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
 
-  /* ------------------------------- 卡片 ------------------------------- */
-  .card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius); box-shadow: var(--shadow);
-    margin-top: 20px; overflow: hidden;
-  }
-  .card-head {
-    padding: 14px 18px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px;
-  }
+  /* ============================ 卡片 ============================ */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-top: 20px; overflow: hidden; }
+  .card-head { padding: 13px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
   .card-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
-  .card-head .hint { font-size: 12px; color: var(--text-faint); font-weight: 400; }
+  .hint { font-size: 12px; color: var(--faint); font-weight: 400; }
   .card-body { padding: 18px; }
 
-  /* ------------------------------ 上传区 ------------------------------ */
-  .drop {
-    border: 2px dashed var(--border); border-radius: var(--radius);
-    padding: 34px 20px; text-align: center; cursor: pointer;
-    transition: border-color .15s, background .15s;
-    background: #fcfcfd;
-  }
+  /* ============================ 通用 ============================ */
+  .btn { border: 1px solid var(--border); background: var(--card); color: var(--dim); padding: 6px 13px; border-radius: 7px; font-size: 12.5px; cursor: pointer; font-family: inherit; transition: all .12s; white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: #c7d2e3; color: var(--text); background: #fafbfc; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: #2559d4; border-color: #2559d4; color: #fff; }
+  .btn.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .hidden { display: none !important; }
+  code { background: #f2f4f7; padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 12px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 550; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  .pill.ready { background: var(--green-soft); color: var(--green); }
+  .pill.working { background: var(--amber-soft); color: var(--amber); }
+  .pill.failed { background: var(--red-soft); color: var(--red); }
+  .pill.gone { background: #f2f4f7; color: var(--faint); }
+  .pill .spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ========================== 文档管理 ========================== */
+  .drop { border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px 20px; text-align: center; cursor: pointer; transition: all .15s; background: #fcfcfd; }
   .drop:hover { border-color: #c7d2e3; background: #fafbfc; }
   .drop.over { border-color: var(--brand); background: var(--brand-soft); }
   .drop.busy { cursor: progress; opacity: .7; }
   .drop-icon { font-size: 26px; opacity: .35; margin-bottom: 8px; }
   .drop-title { font-size: 14px; font-weight: 550; margin-bottom: 4px; }
-  .drop-sub { font-size: 12px; color: var(--text-faint); }
-
-  .progress {
-    margin-top: 14px; display: none;
-  }
+  .drop-sub { font-size: 12px; color: var(--faint); }
+  .progress { margin-top: 14px; display: none; }
   .progress.show { display: block; }
-  .progress-bar {
-    height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
-  }
-  .progress-bar i {
-    display: block; height: 100%; width: 30%; border-radius: 3px;
-    background: linear-gradient(90deg, var(--brand), #6f9bff);
-    animation: slide 1.1s ease-in-out infinite;
-  }
-  @keyframes slide {
-    0%   { margin-left: -30%; }
-    100% { margin-left: 100%; }
-  }
-  .progress-text { font-size: 12px; color: var(--text-dim); margin-top: 7px; }
-
-  /* ------------------------------ 文档表 ------------------------------ */
+  .progress-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-bar i { display: block; height: 100%; width: 30%; border-radius: 3px; background: linear-gradient(90deg, var(--brand), #6f9bff); animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+  .progress-text { font-size: 12px; color: var(--dim); margin-top: 7px; }
   .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th {
-    text-align: left; font-weight: 550; color: var(--text-dim); font-size: 12px;
-    padding: 10px 14px; border-bottom: 1px solid var(--border);
-    background: #fafbfc; white-space: nowrap;
-  }
+  th { text-align: left; font-weight: 550; color: var(--dim); font-size: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: #fafbfc; white-space: nowrap; }
   td { padding: 12px 14px; border-bottom: 1px solid #f1f3f6; vertical-align: middle; }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover { background: #fafbfc; }
   .fname { font-weight: 500; word-break: break-all; }
-  .fmeta { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
-  .num { font-variant-numeric: tabular-nums; color: var(--text-dim); }
-  .muted { color: var(--text-faint); }
-
-  .pill {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 11.5px; font-weight: 550; padding: 3px 9px; border-radius: 20px;
-    white-space: nowrap;
-  }
-  .pill.ready { background: var(--green-soft); color: var(--green); }
-  .pill.working { background: var(--amber-soft); color: var(--amber); }
-  .pill.failed { background: var(--red-soft); color: var(--red); }
-  .pill.gone { background: #f2f4f7; color: var(--text-faint); }
-  .pill .spin {
-    width: 8px; height: 8px; border-radius: 50%;
-    border: 1.5px solid currentColor; border-top-color: transparent;
-    animation: spin .7s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .btn {
-    border: 1px solid var(--border); background: var(--card); color: var(--text-dim);
-    padding: 5px 11px; border-radius: 7px; font-size: 12px; cursor: pointer;
-    font-family: inherit; transition: all .12s;
-  }
-  .btn:hover:not(:disabled) { border-color: #c7d2e3; color: var(--text); background: #fafbfc; }
-  .btn.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); background: var(--red-soft); }
-  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .fmeta { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .num { font-variant-numeric: tabular-nums; color: var(--dim); }
   .actions { display: flex; gap: 6px; justify-content: flex-end; }
-
-  .empty { text-align: center; padding: 46px 20px; color: var(--text-faint); }
+  .empty { text-align: center; padding: 44px 20px; color: var(--faint); }
   .empty-icon { font-size: 30px; opacity: .3; margin-bottom: 10px; }
 
-  /* ------------------------------- 提示 ------------------------------- */
-  #toast {
-    position: fixed; right: 22px; bottom: 22px; z-index: 100;
-    display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+  /* ============================ 问答 ============================ */
+  .chat-layout { display: flex; flex-direction: column; height: calc(100vh - 190px); min-height: 460px; }
+  .chat-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+  .msg { display: flex; gap: 11px; margin-bottom: 20px; }
+  .msg.user { flex-direction: row-reverse; }
+  .avatar { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; font-size: 13px; font-weight: 600; }
+  .msg.user .avatar { background: var(--brand); color: #fff; }
+  .msg.bot .avatar { background: linear-gradient(135deg, #12a150, #34c76f); color: #fff; }
+  .bubble { max-width: 78%; padding: 11px 15px; border-radius: 12px; font-size: 14px; line-height: 1.75; word-break: break-word; }
+  .msg.user .bubble { background: var(--brand); color: #fff; border-top-right-radius: 3px; }
+  .msg.bot .bubble { background: #f7f8fa; border: 1px solid var(--border); border-top-left-radius: 3px; }
+  .bubble p { margin: 0 0 8px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .cite-ref {
+    display: inline-block; min-width: 17px; text-align: center;
+    background: var(--brand-soft); color: var(--brand); border-radius: 4px;
+    font-size: 11px; font-weight: 600; padding: 0 4px; margin: 0 1px;
+    cursor: pointer; vertical-align: 1px; font-family: var(--mono);
   }
-  .toast {
-    background: #1a2233; color: #fff; padding: 11px 15px; border-radius: 9px;
-    font-size: 13px; max-width: 460px; box-shadow: 0 8px 24px rgba(16,24,40,.2);
-    animation: rise .18s ease-out; line-height: 1.55;
+  .cite-ref:hover { background: var(--brand); color: #fff; }
+
+  .stage { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); padding: 3px 0; }
+  .stage .spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--brand); border-top-color: transparent; animation: spin .7s linear infinite; }
+  .stage .done { color: var(--green); }
+
+  .cites { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 11px; }
+  .cites-title { font-size: 11.5px; color: var(--faint); margin-bottom: 7px; font-weight: 550; }
+  .cite-card { border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; margin-bottom: 7px; background: #fff; font-size: 12.5px; }
+  .cite-card:target, .cite-card.flash { border-color: var(--brand); background: var(--brand-soft); }
+  .cite-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; flex-wrap: wrap; }
+  .cite-idx { background: var(--brand); color: #fff; border-radius: 4px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; font-family: var(--mono); }
+  .cite-file { font-weight: 550; }
+  .cite-page { color: var(--faint); font-size: 11.5px; }
+  .cite-score { margin-left: auto; color: var(--faint); font-size: 11px; font-family: var(--mono); }
+  .cite-snippet { color: var(--dim); line-height: 1.6; }
+  .warn-note { background: var(--amber-soft); border: 1px solid #f0d9b0; color: var(--amber); border-radius: 7px; padding: 7px 10px; font-size: 12px; margin-top: 8px; }
+
+  .chat-input { border-top: 1px solid var(--border); padding: 13px 18px; background: #fcfcfd; }
+  .chat-input-row { display: flex; gap: 9px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none; border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5;
+    min-height: 42px; max-height: 160px; outline: none; background: #fff;
   }
+  textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .chat-hint { font-size: 11.5px; color: var(--faint); margin-top: 7px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .examples { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+  .example { border: 1px solid var(--border); background: #fff; border-radius: 16px; padding: 5px 12px; font-size: 12.5px; color: var(--dim); cursor: pointer; font-family: inherit; }
+  .example:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+
+  /* ============================ 设置 ============================ */
+  .cfg-group { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; }
+  .cfg-group > h3 { margin: 0; padding: 11px 15px; font-size: 13.5px; font-weight: 600; background: #fafbfc; border-bottom: 1px solid var(--border); }
+  .cfg-fields { padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12.5px; font-weight: 550; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .field .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--amber-soft); color: var(--amber); font-weight: 500; }
+  .field input, .field select {
+    border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px;
+    font: inherit; font-size: 13px; outline: none; background: #fff; width: 100%;
+  }
+  .field input:focus, .field select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .field .desc { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+  .field .minmax { font-size: 11px; color: var(--faint); font-family: var(--mono); }
+  .switch { display: flex; align-items: center; gap: 9px; padding: 4px 0; }
+  .switch input { width: auto; }
+  .cfg-actions { position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--border); padding: 13px 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .test-result { font-size: 12.5px; padding: 9px 12px; border-radius: 8px; margin-top: 12px; line-height: 1.6; }
+  .test-result.ok { background: var(--green-soft); color: var(--green); border: 1px solid #c3e6d1; }
+  .test-result.err { background: var(--red-soft); color: var(--red); border: 1px solid #f5c6c2; }
+  .test-result pre { margin: 5px 0 0; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; }
+
+  .note { background: var(--brand-soft); border: 1px solid #d3e0ff; border-radius: 8px; padding: 11px 14px; font-size: 12.5px; color: #24418a; margin-top: 16px; line-height: 1.65; }
+
+  /* ============================ 提示 ============================ */
+  #toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .toast { background: #1a2233; color: #fff; padding: 11px 15px; border-radius: 9px; font-size: 13px; max-width: 460px; box-shadow: 0 8px 24px rgba(16,24,40,.2); animation: rise .18s ease-out; line-height: 1.55; }
   .toast.ok { background: #0d7a3e; }
   .toast.err { background: #b42318; }
-  .toast .tid {
-    display: block; margin-top: 5px; font-size: 11px; opacity: .7;
-    font-family: ui-monospace, Consolas, monospace;
-  }
+  .toast .tid { display: block; margin-top: 5px; font-size: 11px; opacity: .7; font-family: var(--mono); }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
-
-  .note {
-    background: var(--brand-soft); border: 1px solid #d3e0ff; border-radius: 8px;
-    padding: 11px 14px; font-size: 12.5px; color: #24418a; margin-top: 16px;
-    line-height: 1.65;
-  }
-  .note b { font-weight: 600; }
-
-  .coming {
-    text-align: center; padding: 52px 20px; color: var(--text-faint);
-  }
-  .coming-icon { font-size: 32px; opacity: .3; margin-bottom: 12px; }
-  .coming h3 { margin: 0 0 6px; font-size: 15px; color: var(--text-dim); font-weight: 550; }
-  .coming p { margin: 0; font-size: 12.5px; }
-  code {
-    background: #f2f4f7; padding: 1px 5px; border-radius: 4px;
-    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
-  }
-  a { color: var(--brand); }
-  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -220,31 +185,25 @@
       <span class="logo-mark">D</span>
       DocMind <small>· 文档智能问答</small>
     </div>
-
     <div class="tabs">
-      <button class="tab active" id="tab-docs">文档管理</button>
-      <button class="tab" id="tab-chat" disabled>智能问答 <span class="badge">P2 开发中</span></button>
+      <button class="tab active" data-view="docs">文档管理</button>
+      <button class="tab" data-view="chat">智能问答</button>
+      <button class="tab" data-view="settings">设置</button>
     </div>
-
     <div class="spacer"></div>
-
-    <div class="health" id="health" title="点击查看就绪探针明细">
+    <div class="health" id="health">
       <span class="dot" id="health-dot"></span>
-      <span id="health-text">检查服务状态…</span>
+      <span id="health-text">检查中…</span>
     </div>
   </div>
 </header>
 
 <div class="wrap">
 
-  <!-- ============================ 文档管理 ============================ -->
-  <div id="view-docs">
-
+  <!-- ========================= 文档管理 ========================= -->
+  <section id="view-docs">
     <div class="card">
-      <div class="card-head">
-        <h2>上传文档</h2>
-        <span class="hint">支持 PDF，单文件默认上限 50MB</span>
-      </div>
+      <div class="card-head"><h2>上传文档</h2><span class="hint">支持 PDF，单文件默认上限 50MB</span></div>
       <div class="card-body">
         <div class="drop" id="drop">
           <div class="drop-icon">⬆</div>
@@ -252,65 +211,90 @@
           <div class="drop-sub">上传后自动完成：解析 → 清洗 → 父子分块 → 向量化入库</div>
         </div>
         <input type="file" id="file" accept=".pdf,application/pdf" class="hidden">
-
         <div class="progress" id="progress">
           <div class="progress-bar"><i></i></div>
           <div class="progress-text" id="progress-text">正在处理…</div>
         </div>
-
         <div class="note">
           <b>幂等提示：</b>同一份文件（按内容 MD5 判断）重复上传不会重复入库，
-          会直接复用已有结果并在提示里标注 <code>created: false</code>。
+          会直接复用已有结果并标注 <code>created: false</code>。
         </div>
       </div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <h2>我的文档</h2>
-        <span class="hint" id="list-hint"></span>
+        <h2>我的文档</h2><span class="hint" id="list-hint"></span>
         <div class="spacer"></div>
         <button class="btn" id="refresh">刷新</button>
       </div>
       <div class="table-scroll">
         <table>
-          <thead>
-            <tr>
-              <th>文件名</th>
-              <th>状态</th>
-              <th>页数</th>
-              <th>父块 / 子块</th>
-              <th>字符数</th>
-              <th>解析 / 向量化</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>文件名</th><th>状态</th><th>页数</th><th>父块 / 子块</th>
+            <th>字符数</th><th>解析 / 向量化</th><th></th>
+          </tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
-      <div class="empty" id="empty">
-        <div class="empty-icon">📄</div>
-        <div>还没有文档，先上传一个 PDF 吧</div>
-      </div>
+      <div class="empty" id="empty"><div class="empty-icon">📄</div><div>还没有文档，先上传一个 PDF 吧</div></div>
     </div>
-  </div>
+  </section>
 
-  <!-- ============================ 智能问答 ============================ -->
-  <div id="view-chat" class="hidden">
-    <div class="card">
-      <div class="card-body">
-        <div class="coming">
-          <div class="coming-icon">💬</div>
-          <h3>智能问答正在开发中（P2 阶段）</h3>
-          <p>
-            问答链路包含：混合检索（向量 + BM25）→ RRF 融合 → Rerank 精排 →
-            流式生成 → 引用溯源校验。<br>
-            完成后即可对着文档提问，答案会标注出自哪一页。
-          </p>
+  <!-- ========================= 智能问答 ========================= -->
+  <section id="view-chat" class="hidden">
+    <div class="card" style="margin-top:20px">
+      <div class="chat-layout">
+        <div class="chat-scroll" id="chat-scroll">
+          <div id="chat-empty" class="empty">
+            <div class="empty-icon">💬</div>
+            <div style="margin-bottom:6px">基于你上传的文档提问，答案会标注来源页码</div>
+            <div style="font-size:12px">先在「文档管理」上传 PDF，等状态变成「已就绪」再来提问</div>
+          </div>
+          <div id="chat-messages"></div>
+        </div>
+
+        <div class="chat-input">
+          <div class="examples" id="examples"></div>
+          <div class="chat-input-row">
+            <textarea id="question" rows="1" placeholder="输入问题，Enter 发送 / Shift+Enter 换行"></textarea>
+            <button class="btn primary" id="send" style="padding:10px 20px">发送</button>
+            <button class="btn" id="clear-chat">清空</button>
+          </div>
+          <div class="chat-hint">
+            <span id="chat-status">就绪</span>
+            <span id="chat-params"></span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
+
+  <!-- =========================== 设置 =========================== -->
+  <section id="view-settings" class="hidden">
+    <div class="card">
+      <div class="card-head">
+        <h2>配置</h2>
+        <span class="hint">保存后立即生效，无需重启（标注需重启的项除外）</span>
+        <div class="spacer"></div>
+        <button class="btn" id="reset-config">恢复默认</button>
+      </div>
+      <div class="card-body" id="cfg-body">
+        <div class="empty">加载中…</div>
+        <div id="test-result"></div>
+      </div>
+      <div class="cfg-actions">
+        <button class="btn primary" id="save-config">保存配置</button>
+        <button class="btn" id="test-llm">测试大模型连接</button>
+        <span class="hint" id="cfg-path"></span>
+      </div>
+    </div>
+    <div class="note">
+      <b>安全提示：</b>配置接口没有身份校验，任何能访问本服务的人都能修改配置。
+      线上部署请设置 <code>DOCMIND_ALLOW_RUNTIME_CONFIG=false</code> 关闭该功能，
+      或在网关层加鉴权。API Key 在读取时始终脱敏，只回显末四位。
+    </div>
+  </section>
 
 </div>
 
@@ -318,119 +302,67 @@
 
 <script>
 "use strict";
-
 const API = "/api/v1";
 const USER_ID = "default-user";
-let busy = false;
-let pollTimer = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const STATUS_LABEL = { PENDING: "排队中", PARSING: "解析中", EMBEDDING: "向量化中", READY: "已就绪", FAILED: "失败", DELETED: "已删除" };
+let busy = false, pollTimer = null, chatHistory = [];
 
 /* ------------------------------ 工具 ------------------------------ */
-const $ = (id) => document.getElementById(id);
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
-}
-
-function fmtSize(bytes) {
-  if (!bytes) return "0 B";
-  const u = ["B", "KB", "MB", "GB"];
-  let i = 0, n = bytes;
+function fmtSize(b) {
+  if (!b) return "0 B";
+  const u = ["B", "KB", "MB", "GB"]; let i = 0, n = b;
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
   return n.toFixed(i === 0 ? 0 : 1) + " " + u[i];
 }
-
-function fmtMs(ms) {
-  if (!ms) return "—";
-  return ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(2) + " s";
-}
-
-function fmtTime(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("zh-CN", { hour12: false }).replace(/\//g, "-");
-}
+function fmtMs(ms) { return !ms ? "—" : (ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(2) + " s"); }
+function fmtTime(iso) { return iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : ""; }
 
 function toast(msg, kind = "", traceId = "") {
   const el = document.createElement("div");
   el.className = "toast " + kind;
   el.innerHTML = esc(msg) + (traceId ? `<span class="tid">trace_id: ${esc(traceId)}</span>` : "");
   $("toast").appendChild(el);
-  setTimeout(() => {
-    el.style.transition = "opacity .25s";
-    el.style.opacity = "0";
-    setTimeout(() => el.remove(), 260);
-  }, kind === "err" ? 7000 : 3600);
+  setTimeout(() => { el.style.transition = "opacity .25s"; el.style.opacity = "0"; setTimeout(() => el.remove(), 260); }, kind === "err" ? 7000 : 3600);
 }
 
-/* --------------------------- 统一请求封装 --------------------------- */
 async function api(path, options = {}) {
-  const res = await fetch(API + path, {
-    ...options,
-    headers: { "X-User-Id": USER_ID, ...(options.headers || {}) },
-  });
-
+  const res = await fetch(API + path, { ...options, headers: { "X-User-Id": USER_ID, ...(options.headers || {}) } });
   let body = null;
-  try { body = await res.json(); } catch { /* 非 JSON 响应 */ }
-
+  try { body = await res.json(); } catch { /* 非 JSON */ }
   if (!res.ok || (body && body.code && body.code !== "OK")) {
-    const err = new Error((body && body.message) || `HTTP ${res.status}`);
-    err.code = body?.code;
-    err.traceId = body?.trace_id;
+    const err = new Error(body?.message || `HTTP ${res.status}`);
+    err.code = body?.code; err.traceId = body?.trace_id;
     throw err;
   }
   return body?.data;
 }
 
-/* ----------------------------- 健康状态 ----------------------------- */
-const STATUS_LABEL = {
-  PENDING: "排队中", PARSING: "解析中", EMBEDDING: "向量化中",
-  READY: "已就绪", FAILED: "失败", DELETED: "已删除",
-};
-
+/* ---------------------------- 健康状态 ---------------------------- */
 async function checkHealth() {
   const dot = $("health-dot"), text = $("health-text");
   try {
     const r = await api("/health/ready");
-    const checks = r.checks || {};
-    const bad = Object.entries(checks).filter(([, v]) => !v.ready);
-
-    if (r.ready && bad.length === 0) {
-      dot.className = "dot ok";
-      text.textContent = "服务正常";
-    } else if (r.ready) {
-      // 就绪但有个别非阻塞项没配好（典型：LLM API Key 未填）
-      dot.className = "dot warn";
-      text.textContent = bad.map(([k]) => k).join(" / ") + " 未就绪";
-    } else {
-      dot.className = "dot bad";
-      text.textContent = "服务未就绪";
-    }
-    $("health").title = Object.entries(checks)
-      .map(([k, v]) => `${k}: ${v.ready ? "✓" : "✗"} ${v.detail}`).join("\n");
-  } catch (e) {
-    dot.className = "dot bad";
-    text.textContent = "无法连接后端";
-    $("health").title = e.message;
-  }
+    const bad = Object.entries(r.checks || {}).filter(([, v]) => !v.ready);
+    if (r.ready && !bad.length) { dot.className = "dot ok"; text.textContent = "服务正常"; }
+    else if (r.ready) { dot.className = "dot warn"; text.textContent = bad.map(([k]) => k).join(" / ") + " 未就绪"; }
+    else { dot.className = "dot bad"; text.textContent = "服务未就绪"; }
+    $("health").title = Object.entries(r.checks || {}).map(([k, v]) => `${k}: ${v.ready ? "✓" : "✗"} ${v.detail}`).join("\n");
+  } catch (e) { dot.className = "dot bad"; text.textContent = "无法连接后端"; $("health").title = e.message; }
 }
 
-/* ------------------------------ 文档列表 ------------------------------ */
-function statusPill(status) {
-  const working = ["PENDING", "PARSING", "EMBEDDING"].includes(status);
-  const cls = status === "READY" ? "ready"
-    : working ? "working"
-    : status === "FAILED" ? "failed" : "gone";
-  const spin = working ? '<span class="spin"></span>' : "";
-  return `<span class="pill ${cls}">${spin}${esc(STATUS_LABEL[status] || status)}</span>`;
+/* ============================ 文档管理 ============================ */
+function statusPill(s) {
+  const working = ["PENDING", "PARSING", "EMBEDDING"].includes(s);
+  const cls = s === "READY" ? "ready" : working ? "working" : s === "FAILED" ? "failed" : "gone";
+  return `<span class="pill ${cls}">${working ? '<span class="spin"></span>' : ""}${esc(STATUS_LABEL[s] || s)}</span>`;
 }
 
 function renderDocs(items) {
-  const tbody = $("rows");
   $("empty").classList.toggle("hidden", items.length > 0);
-
-  tbody.innerHTML = items.map((d) => `
+  $("rows").innerHTML = items.map((d) => `
     <tr>
       <td>
         <div class="fname">${esc(d.filename)}</div>
@@ -441,162 +373,351 @@ function renderDocs(items) {
       <td class="num">${d.page_count || "—"}</td>
       <td class="num">${d.parent_chunk_count || 0} / ${d.child_chunk_count || 0}</td>
       <td class="num">${d.char_count ? d.char_count.toLocaleString() : "—"}</td>
-      <td class="num" style="font-size:12px">
-        ${fmtMs(d.parse_cost_ms)}<span class="muted"> / </span>${fmtMs(d.embed_cost_ms)}
-      </td>
-      <td>
-        <div class="actions">
-          <button class="btn" data-act="reindex" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>重新处理</button>
-          <button class="btn danger" data-act="delete" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>删除</button>
-        </div>
-      </td>
-    </tr>
-  `).join("");
+      <td class="num" style="font-size:12px">${fmtMs(d.parse_cost_ms)} / ${fmtMs(d.embed_cost_ms)}</td>
+      <td><div class="actions">
+        <button class="btn" data-act="reindex" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>重新处理</button>
+        <button class="btn danger" data-act="delete" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>删除</button>
+      </div></td>
+    </tr>`).join("");
 
   const processing = items.filter((d) => ["PENDING", "PARSING", "EMBEDDING"].includes(d.status));
-  $("list-hint").textContent = items.length
-    ? `共 ${items.length} 个${processing.length ? `，${processing.length} 个处理中` : ""}`
-    : "";
-
-  // 只在有处理中的文档时才轮询 —— 避免无意义的空转请求
+  $("list-hint").textContent = items.length ? `共 ${items.length} 个${processing.length ? `，${processing.length} 个处理中` : ""}` : "";
   clearTimeout(pollTimer);
-  if (processing.length) {
-    pollTimer = setTimeout(loadDocs, 1500);
-  }
+  if (processing.length) pollTimer = setTimeout(loadDocs, 1500);
+  renderExamples(items.filter((d) => d.status === "READY"));
 }
 
 async function loadDocs() {
-  try {
-    const data = await api("/documents?page=1&page_size=50");
-    renderDocs(data.items || []);
-  } catch (e) {
-    toast("加载文档列表失败：" + e.message, "err", e.traceId);
-  }
+  try { renderDocs((await api("/documents?page=1&page_size=50")).items || []); }
+  catch (e) { toast("加载文档列表失败：" + e.message, "err", e.traceId); }
 }
 
-/* -------------------------------- 上传 -------------------------------- */
+function renderExamples(ready) {
+  const box = $("examples");
+  if (!ready.length) { box.innerHTML = ""; return; }
+  const samples = ["这份文档的主要内容是什么？", "文档里提到了哪些技术栈？", "有没有关于性能优化的内容？"];
+  box.innerHTML = samples.map((q) => `<button class="example" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+}
+
 async function upload(file) {
   if (busy) return;
-
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
-    toast("只支持 PDF 文件", "err");
-    return;
-  }
-
+  if (!file.name.toLowerCase().endsWith(".pdf")) { toast("只支持 PDF 文件", "err"); return; }
   busy = true;
-  const drop = $("drop");
-  drop.classList.add("busy");
+  $("drop").classList.add("busy");
   $("progress").classList.add("show");
-  $("progress-text").textContent = `正在解析并向量化「${file.name}」…（大文件可能需要几十秒，请不要关闭页面）`;
-
+  $("progress-text").textContent = `正在解析并向量化「${file.name}」…（大文件可能需要几十秒，请勿关闭页面）`;
   try {
     const fd = new FormData();
     fd.append("file", file);
-
     const data = await api("/documents", { method: "POST", body: fd });
     const d = data.document;
-
-    if (d.status === "READY") {
-      toast(
-        `${data.created ? "上传成功" : "该文件已存在，直接复用"}：` +
-        `${d.page_count} 页 → ${d.parent_chunk_count} 父块 / ${d.child_chunk_count} 子块`,
-        "ok"
-      );
-    } else if (d.status === "FAILED") {
-      toast("处理失败：" + (d.error_msg || "未知原因"), "err");
-    } else {
-      toast(`已受理，当前状态：${STATUS_LABEL[d.status] || d.status}`, "ok");
-    }
+    if (d.status === "READY") toast(`${data.created ? "上传成功" : "该文件已存在，直接复用"}：${d.page_count} 页 → ${d.parent_chunk_count} 父块 / ${d.child_chunk_count} 子块`, "ok");
+    else if (d.status === "FAILED") toast("处理失败：" + (d.error_msg || "未知原因"), "err");
+    else toast(`已受理，当前状态：${STATUS_LABEL[d.status] || d.status}`, "ok");
     await loadDocs();
+  } catch (e) { toast("上传失败：" + e.message, "err", e.traceId); }
+  finally { busy = false; $("drop").classList.remove("busy"); $("progress").classList.remove("show"); $("file").value = ""; }
+}
+
+/* ============================== 问答 ============================== */
+function addMessage(role, html) {
+  $("chat-empty").classList.add("hidden");
+  const el = document.createElement("div");
+  el.className = "msg " + (role === "user" ? "user" : "bot");
+  el.innerHTML = `<div class="avatar">${role === "user" ? "我" : "AI"}</div><div class="bubble">${html}</div>`;
+  $("chat-messages").appendChild(el);
+  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  return el.querySelector(".bubble");
+}
+
+/** 把答案里的 [1] 变成可点击的角标，并保留换行。 */
+function renderAnswer(text) {
+  return esc(text)
+    .replace(/\[(\d+(?:\s*[,\-–]\s*\d+)*)\]/g, (m, n) => `<span class="cite-ref" data-cite="${esc(n)}">${esc(n)}</span>`)
+    .split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+function renderCitations(citations, corrected) {
+  if (!citations.length) return corrected
+    ? `<div class="warn-note">模型标注了不存在的来源编号，已自动剥离。请谨慎对待本回答。</div>` : "";
+  const cards = citations.map((c) => `
+    <div class="cite-card" id="cite-${esc(String(c.index))}">
+      <div class="cite-head">
+        <span class="cite-idx">${esc(String(c.index))}</span>
+        <span class="cite-file">${esc(c.filename)}</span>
+        <span class="cite-page">第 ${c.page_start}${c.page_end !== c.page_start ? "-" + c.page_end : ""} 页${c.section_path ? " · " + esc(c.section_path) : ""}</span>
+        <span class="cite-score">score ${esc(String(c.score))}</span>
+      </div>
+      <div class="cite-snippet">${esc(c.snippet)}…</div>
+    </div>`).join("");
+  const warn = corrected ? `<div class="warn-note">部分来源编号在原文中不存在，已自动剥离。</div>` : "";
+  return `<div class="cites"><div class="cites-title">引用来源（${citations.length}）</div>${cards}${warn}</div>`;
+}
+
+async function ask(question) {
+  if (busy || !question.trim()) return;
+  busy = true;
+  $("send").disabled = true;
+  $("question").value = "";
+  $("question").style.height = "auto";
+
+  addMessage("user", esc(question));
+  chatHistory.push({ role: "user", content: question });
+
+  const bubble = addMessage("bot", `<div class="stage" id="stage-live"><span class="spin"></span><span>正在检索…</span></div>`);
+  const stageBox = bubble.querySelector("#stage-live");
+  let answer = "", citations = [], corrected = false;
+
+  try {
+    const res = await fetch(API + "/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-User-Id": USER_ID },
+      body: JSON.stringify({ question, history: chatHistory.slice(-7, -1) }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.message || `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) >= 0) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        handleFrame(frame);
+      }
+    }
+
+    function handleFrame(frame) {
+      let ev = "message", data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith(":")) continue;             // SSE 心跳注释
+        if (line.startsWith("event:")) ev = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) return;
+      let payload;
+      try { payload = JSON.parse(data); } catch { return; }
+
+      if (ev === "stage") {
+        if (stageBox) stageBox.innerHTML = `<span class="spin"></span><span>${esc(payload.detail || payload.stage)}</span>`;
+        $("chat-status").textContent = payload.detail || "";
+      } else if (ev === "sources") {
+        $("chat-status").textContent = `检索到 ${payload.sources.length} 段相关内容`;
+      } else if (ev === "token") {
+        answer += payload.text;
+        bubble.innerHTML = renderAnswer(answer);
+        $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+      } else if (ev === "citations") {
+        citations = payload.citations || [];
+        corrected = !!payload.answer_corrected;
+      } else if (ev === "done") {
+        answer = payload.answer ?? answer;
+        bubble.innerHTML = renderAnswer(answer) + renderCitations(citations, corrected);
+        chatHistory.push({ role: "assistant", content: answer });
+        $("chat-status").textContent = payload.refused
+          ? "已拒答（文档中无相关内容）"
+          : `完成 · 首字 ${payload.first_token_ms ?? "-"} ms · 总计 ${payload.total_ms ?? "-"} ms`;
+      } else if (ev === "error") {
+        throw new Error(payload.message || "生成失败");
+      }
+    }
   } catch (e) {
-    toast("上传失败：" + e.message, "err", e.traceId);
+    if (!answer) bubble.innerHTML = `<p style="color:var(--red)">出错了：${esc(e.message)}</p>`;
+    else bubble.innerHTML = renderAnswer(answer) + `<div class="warn-note">生成中断：${esc(e.message)}</div>`;
+    toast("问答失败：" + e.message, "err");
+    $("chat-status").textContent = "失败";
   } finally {
     busy = false;
-    drop.classList.remove("busy");
-    $("progress").classList.remove("show");
-    $("file").value = "";
+    $("send").disabled = false;
+    $("question").focus();
   }
 }
 
-/* ------------------------------ 行内操作 ------------------------------ */
+/* ============================== 设置 ============================== */
+let cfgLoaded = false;
+
+function renderConfig(data) {
+  $("cfg-body").innerHTML = data.groups.map((g) => `
+    <div class="cfg-group">
+      <h3>${esc(g.name)}</h3>
+      <div class="cfg-fields">
+        ${g.fields.map(renderField).join("")}
+      </div>
+    </div>`).join("");
+  $("cfg-path").textContent = data.runtime_config_enabled
+    ? "配置保存于 " + data.runtime_config_path
+    : "运行时配置已禁用（DOCMIND_ALLOW_RUNTIME_CONFIG=false）";
+  $("save-config").disabled = !data.runtime_config_enabled;
+  cfgLoaded = true;
+}
+
+function renderField(f) {
+  const badges =
+    (f.requires_reindex ? '<span class="badge">改动需重建索引</span>' : "") +
+    (f.requires_restart ? '<span class="badge">需重启</span>' : "");
+  const id = "cfg-" + f.key;
+  const desc = f.description ? `<div class="desc">${esc(f.description)}</div>` : "";
+  let control;
+
+  if (f.type === "bool") {
+    control = `<div class="switch"><input type="checkbox" id="${id}" data-key="${esc(f.key)}" data-type="bool" ${f.value ? "checked" : ""}><span class="desc">${f.value ? "已启用" : "已关闭"}</span></div>`;
+  } else if (f.type === "select") {
+    control = `<select id="${id}" data-key="${esc(f.key)}" data-type="select">${(f.options || []).map((o) => `<option value="${esc(o)}" ${o === f.value ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  } else if (f.type === "secret") {
+    control = `<input type="password" id="${id}" data-key="${esc(f.key)}" data-type="secret" value="${esc(f.value)}" placeholder="请输入 API Key"
+                 autocomplete="new-password"><div class="desc">${esc(f.hint || "")}。留空表示不修改。</div>`;
+  } else {
+    const step = f.type === "float" ? 'step="0.01"' : "";
+    control = `<input type="${f.type === "int" || f.type === "float" ? "number" : "text"}" id="${id}"
+                 data-key="${esc(f.key)}" data-type="${esc(f.type)}" value="${esc(f.value ?? "")}" ${step}>`;
+  }
+
+  const minmax = (f.min !== undefined || f.max !== undefined)
+    ? `<span class="minmax">${f.min ?? "-"} ~ ${f.max ?? "-"}</span>` : "";
+
+  return `<div class="field"><label for="${id}">${esc(f.label)}${minmax}${badges}</label>${control}${desc}</div>`;
+}
+
+function collectConfig() {
+  const payload = {};
+  document.querySelectorAll("#cfg-body [data-key]").forEach((el) => {
+    const key = el.dataset.key, type = el.dataset.type;
+    if (type === "bool") payload[key] = el.checked;
+    else if (type === "secret") { if (el.value && el.value !== "********") payload[key] = el.value; }
+    else if (type === "int") payload[key] = parseInt(el.value, 10);
+    else if (type === "float") payload[key] = parseFloat(el.value);
+    else payload[key] = el.value;
+  });
+  return payload;
+}
+
+async function loadConfig(force = false) {
+  if (cfgLoaded && !force) return;
+  try { renderConfig(await api("/settings")); }
+  catch (e) { $("cfg-body").innerHTML = `<div class="empty" style="color:var(--red)">加载配置失败：${esc(e.message)}</div>`; }
+}
+
+/* ============================ 事件绑定 ============================ */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
+    ["docs", "chat", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== tab.dataset.view));
+    if (tab.dataset.view === "settings") loadConfig();
+    if (tab.dataset.view === "chat") loadChatParams();
+  });
+});
+
+async function loadChatParams() {
+  try {
+    const c = await api("/chat/config");
+    $("chat-params").textContent =
+      `召回 向量${c.vector_top_k}+关键词${c.bm25_top_k} · 重排${c.rerank_enabled ? "开" : "关"} · 入Prompt ${c.final_top_k} · 拒答阈值 ${c.rerank_min_score}`;
+    if (!c.llm_configured) {
+      $("chat-status").innerHTML = '未配置大模型 API Key，请先到「设置」里填写';
+    }
+  } catch { /* 忽略 */ }
+}
+
+$("drop").addEventListener("click", () => { if (!busy) $("file").click(); });
+$("file").addEventListener("change", (e) => { if (e.target.files[0]) upload(e.target.files[0]); });
+["dragenter", "dragover"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); if (!busy) $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach((t) => $("drop").addEventListener(t, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) upload(f); });
+$("refresh").addEventListener("click", loadDocs);
+
 document.addEventListener("click", async (ev) => {
+  const ex = ev.target.closest(".example");
+  if (ex) { $("question").value = ex.dataset.q; ask(ex.dataset.q); return; }
+
+  const ref = ev.target.closest(".cite-ref");
+  if (ref) {
+    const card = document.getElementById("cite-" + ref.dataset.cite);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("flash");
+      setTimeout(() => card.classList.remove("flash"), 1600);
+    }
+    return;
+  }
+
   const btn = ev.target.closest("button[data-act]");
   if (!btn || busy) return;
-
-  const id = btn.dataset.id;
-  const act = btn.dataset.act;
+  const id = btn.dataset.id, act = btn.dataset.act;
 
   if (act === "delete") {
     if (!confirm("确认删除这份文档？\n\n会同时清理向量库中的分块与原始文件。")) return;
     busy = true;
-    try {
-      const r = await api("/documents/" + id, { method: "DELETE" });
-      toast(`已删除：清理 ${r.deleted_chunks} 个分块、${r.deleted_vectors} 条向量`, "ok");
-      await loadDocs();
-    } catch (e) {
-      toast("删除失败：" + e.message, "err", e.traceId);
-    } finally {
-      busy = false;
-    }
+    try { const r = await api("/documents/" + id, { method: "DELETE" }); toast(`已删除：清理 ${r.deleted_chunks} 个分块、${r.deleted_vectors} 条向量`, "ok"); await loadDocs(); }
+    catch (e) { toast("删除失败：" + e.message, "err", e.traceId); }
+    finally { busy = false; }
     return;
   }
 
   if (act === "reindex") {
     busy = true;
-    $("progress").classList.add("show");
-    $("progress-text").textContent = "正在重新处理…";
-    try {
-      const r = await api(`/documents/${id}/reindex`, { method: "POST" });
-      toast(`重新处理完成：${r.status}`, r.status === "READY" ? "ok" : "err");
-      await loadDocs();
-    } catch (e) {
-      toast("重新处理失败：" + e.message, "err", e.traceId);
-    } finally {
-      busy = false;
-      $("progress").classList.remove("show");
-    }
+    $("progress").classList.add("show"); $("progress-text").textContent = "正在重新处理…";
+    try { const r = await api(`/documents/${id}/reindex`, { method: "POST" }); toast(`重新处理完成：${r.status}`, r.status === "READY" ? "ok" : "err"); await loadDocs(); }
+    catch (e) { toast("重新处理失败：" + e.message, "err", e.traceId); }
+    finally { busy = false; $("progress").classList.remove("show"); }
   }
 });
 
-/* ------------------------------- 事件绑定 ------------------------------- */
-$("drop").addEventListener("click", () => { if (!busy) $("file").click(); });
-$("file").addEventListener("change", (e) => { if (e.target.files[0]) upload(e.target.files[0]); });
-
-["dragenter", "dragover"].forEach((t) =>
-  $("drop").addEventListener(t, (e) => {
-    e.preventDefault();
-    if (!busy) $("drop").classList.add("over");
-  })
-);
-["dragleave", "drop"].forEach((t) =>
-  $("drop").addEventListener(t, (e) => {
-    e.preventDefault();
-    $("drop").classList.remove("over");
-  })
-);
-$("drop").addEventListener("drop", (e) => {
-  const f = e.dataTransfer.files[0];
-  if (f) upload(f);
+$("send").addEventListener("click", () => ask($("question").value));
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("question").value); }
+});
+$("question").addEventListener("input", (e) => {
+  e.target.style.height = "auto";
+  e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+});
+$("clear-chat").addEventListener("click", () => {
+  $("chat-messages").innerHTML = ""; chatHistory = [];
+  $("chat-empty").classList.remove("hidden"); $("chat-status").textContent = "就绪";
 });
 
-$("refresh").addEventListener("click", loadDocs);
-
-$("tab-docs").addEventListener("click", () => {
-  $("tab-docs").classList.add("active");
-  $("tab-chat").classList.remove("active");
-  $("view-docs").classList.remove("hidden");
-  $("view-chat").classList.add("hidden");
-});
-$("tab-chat").addEventListener("click", () => {
-  $("tab-chat").classList.add("active");
-  $("tab-docs").classList.remove("active");
-  $("view-chat").classList.remove("hidden");
-  $("view-docs").classList.add("hidden");
+$("save-config").addEventListener("click", async (ev) => {
+  ev.target.disabled = true;
+  try {
+    const r = await api("/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collectConfig()) });
+    toast(r.count ? `已更新 ${r.count} 项配置并生效` : "没有需要更新的字段", "ok");
+    renderConfig(r.config);
+    loadChatParams();
+  } catch (e) { toast("保存失败：" + e.message, "err", e.traceId); }
+  finally { ev.target.disabled = false; }
 });
 
-/* -------------------------------- 启动 -------------------------------- */
-checkHealth();
-loadDocs();
+$("test-llm").addEventListener("click", async (ev) => {
+  ev.target.disabled = true;
+  $("test-result").innerHTML = '<div class="test-result">正在调用大模型…</div>';
+  try {
+    const r = await api("/settings/test-llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    $("test-result").innerHTML = `<div class="test-result ok"><b>✓ ${esc(r.message)}</b><pre>模型: ${esc(r.model)}\n地址: ${esc(r.base_url)}\n回复: ${esc(r.reply)}\ntoken: prompt ${r.usage.prompt_tokens} / completion ${r.usage.completion_tokens}</pre></div>`;
+    toast("大模型连接正常", "ok");
+  } catch (e) {
+    $("test-result").innerHTML = `<div class="test-result err"><b>✗ 连接失败</b><pre>${esc(e.message)}${e.traceId ? "\ntrace_id: " + esc(e.traceId) : ""}</pre></div>`;
+    toast("连接失败：" + e.message, "err", e.traceId);
+  } finally { ev.target.disabled = false; }
+});
+
+$("reset-config").addEventListener("click", async () => {
+  if (!confirm("恢复默认配置？\n\n会删除界面上的配置，回退到 .env / 代码默认值。\n需要重启服务后生效。")) return;
+  try { const r = await api("/settings", { method: "DELETE" }); toast("已恢复默认，重启服务后生效", "ok"); loadConfig(true); }
+  catch (e) { toast("操作失败：" + e.message, "err", e.traceId); }
+});
+
+/* ============================== 启动 ============================== */
+checkHealth(); loadDocs(); loadChatParams();
 setInterval(checkHealth, 30000);
 </script>
 </body>

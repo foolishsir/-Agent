@@ -152,17 +152,26 @@ docmind/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py               应用工厂 / 生命周期 / 全局异常
+│   │   ├── static/index.html     零依赖 Web 控制台（单文件，无需构建）
 │   │   ├── core/                 配置 · 日志 · 异常 · 响应 · 中间件
-│   │   ├── api/v1/               HTTP 接口
+│   │   ├── api/v1/               HTTP 接口（health / documents / chat / settings）
 │   │   ├── models/               SQLAlchemy ORM
 │   │   ├── schemas/              Pydantic 请求/响应模型
-│   │   ├── services/             业务逻辑（API 与 Worker 共用）
-│   │   └── worker/               异步任务
-│   ├── tests/                    单元测试
-│   ├── scripts/check_env.py      环境自检
+│   │   ├── services/
+│   │   │   ├── parser/           PDF 解析与清洗
+│   │   │   ├── chunking/         父子块切分
+│   │   │   ├── embedding/        向量化（本地 BGE / 云端 API 可切换）
+│   │   │   ├── vectorstore/      向量库（Chroma 封装）
+│   │   │   ├── retrieval/        混合检索 + RRF + 精排
+│   │   │   ├── llm/              LLM 客户端（OpenAI 兼容，支持流式）
+│   │   │   ├── rag/              RAG 编排 + 引用校验
+│   │   │   ├── ingest.py         入库编排
+│   │   │   ├── document_service.py  文档业务逻辑
+│   │   │   └── config_service.py    运行时配置
+│   │   └── db/                   异步会话与引擎
+│   ├── tests/                    131 个测试
+│   ├── scripts/                  环境自检 / 解析质量检查
 │   └── Dockerfile
-├── frontend/                     Vue3 + ElementPlus
-├── eval/                         评测集与指标脚本
 ├── docs/                         设计文档
 ├── docker-compose.yml            chroma + redis + backend + worker
 └── .env.example
@@ -176,7 +185,7 @@ docmind/
 |---|---|---|
 | P0 | 项目骨架（配置/日志/异常/探针/自检） | ✅ 已完成 |
 | P1 | 文档入库链路（解析→分块→向量化→入库） | ✅ 已完成 |
-| P2 | 问答链路（混合检索→精排→流式生成→引用） | 🚧 进行中 |
+| P2 | 问答链路（混合检索→精排→流式生成→引用） | ✅ 已完成 |
 | P3 | 多轮对话与 Query 改写 | ⏳ |
 | P4 | 工程化加固（异步/幂等/缓存/隔离） | ⏳ |
 | P5 | 评测体系与量化对比实验 | ⏳ |

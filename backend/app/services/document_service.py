@@ -327,6 +327,16 @@ async def delete_document(
         vectors=deleted_vectors,
         file_removed=file_removed,
     )
+
+    # 文档删了但 BM25 语料缓存还留着旧内容 → 会检索到已删除文档的片段.
+    # 这是"幽灵数据"最隐蔽的表现形式: 存储里查不到, 但检索能召回.
+    try:
+        from app.services.retrieval.bm25 import get_bm25_retriever  # noqa: PLC0415
+
+        get_bm25_retriever().invalidate()
+    except Exception:  # noqa: BLE001 - 缓存失效失败不应影响删除结果
+        logger.exception("BM25 缓存失效失败 | doc_id=%s", doc_id)
+
     return {
         "doc_id": doc_id,
         "deleted_chunks": deleted_chunks,

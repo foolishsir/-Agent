@@ -179,6 +179,11 @@ async def run_ingest(doc_id: str) -> IngestResult:
             document.error_msg = None
             await session.commit()
 
+        # 文档内容变了 → BM25 索引缓存必须失效.
+        # 不失效的话关键词检索会继续用旧语料, 表现为"新上传的文档搜不到",
+        # 更危险的是"已删除的文档还能搜到" —— 那是数据泄露.
+        _invalidate_bm25_cache()
+
         total_ms = int((time.perf_counter() - total_started) * 1000)
         log_kv(
             logger,
@@ -294,6 +299,21 @@ async def _replace_chunks(
         ]
     )
     await session.flush()
+
+
+def _invalidate_bm25_cache() -> None:
+    """让关键词检索的语料缓存失效.
+
+    放在 ingest 和 delete 两处调用. 漏掉任何一处都会导致
+    "检索结果与实际文档不一致" —— 这类 bug 不会报错, 只会让答案莫名其妙.
+    另外 BM25 缓存本身还有 TTL 兜底, 但那是最后一道防线, 不是借口.
+    """
+    try:
+        from app.services.retrieval.bm25 import get_bm25_retriever  # noqa: PLC0415
+
+        get_bm25_retriever().invalidate()
+    except Exception:  # noqa: BLE001 - 缓存失效失败不应影响入库结果
+        logger.exception("BM25 缓存失效失败")
 
 
 async def _mark_failed(doc_id: str, message: str) -> None:
