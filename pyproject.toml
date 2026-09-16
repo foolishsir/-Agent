@@ -65,6 +65,10 @@ ignore = [
 "backend/app/services/retrieval/**" = ["PLC0415"]
 # 评测脚本是命令行工具, 输出就是给人在终端看的 —— print 是它们的对外接口.
 "eval/**" = ["T20", "PLC0415"]
+# 安装/启动脚本同理: 它们存在的意义就是往终端打印友好的中文提示.
+# (顺便说: 这些提示本来想写在 .bat 里, 但 cmd.exe 对中文的支持不可靠,
+#  所以逻辑都挪到了 Python 脚本, .bat 只留一行 ASCII 启动器.)
+"scripts/**" = ["T20", "PLC0415"]
 
 [tool.ruff.lint.isort]
 # 声明 app 为第一方包, 否则 ruff 会把 `from app.xxx` 误判为第三方,

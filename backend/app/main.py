@@ -40,6 +40,19 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     settings.ensure_dirs()
 
+    # 应用上次在 Web 界面上保存的配置.
+    #
+    # **必须在所有配置检查与模型预热之前执行**. 这个顺序踩过坑:
+    # 最初把 load_runtime_overrides() 放在后面, 于是"未配置 LLM API Key"的告警
+    # 打在了加载界面配置之前 —— 明明用户已经在网页「设置」里填好了 Key,
+    # 启动日志却一直警告说没配, 用户会以为设置没保存成功.
+    #
+    # 同理, 界面上的 embedding_device=cuda 也要在预热前生效,
+    # 否则会用错设备加载模型.
+    from app.services import config_service  # noqa: PLC0415
+
+    applied = config_service.load_runtime_overrides()
+
     logger.info(
         "DocMind 启动中 | env=%s version=%s debug=%s",
         settings.app_env,
@@ -56,21 +69,19 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         settings.task_mode,
         settings.chroma_mode,
     )
+    if applied:
+        logger.info("已应用 %s 项界面配置 | path=%s", applied, config_service.runtime_config_path())
+
     if not settings.llm_configured:
         logger.warning(
-            "未检测到 DOCMIND_LLM_API_KEY, 问答接口将返回 503. 请在 %s 中配置后重启.",
-            settings.data_dir.parent / ".env",
+            "未检测到 LLM API Key, 问答接口将不可用. "
+            "请在 .env 中设置 DOCMIND_LLM_API_KEY, "
+            "或启动后在网页「设置」页面填写(保存即生效, 无需重启). "
+            "文档上传与分块预览不依赖它."
         )
 
     # 建表 —— 必须在任何请求到来之前完成, 否则第一个请求会撞上"表不存在"
     await init_db()
-
-    # 应用上次在 Web 界面上保存的配置.
-    # 必须在建表/预热**之前**执行: 界面上的配置(如 embedding_device=cuda)
-    # 会影响预热时加载模型的设备选择.
-    from app.services import config_service  # noqa: PLC0415
-
-    config_service.load_runtime_overrides()
 
     if settings.warmup_on_startup:
         # 预热本地模型: 把几十秒的加载开销从"第一个用户请求"移到"进程启动".

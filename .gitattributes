@@ -10,10 +10,22 @@
 # 仓库内统一存储为 LF
 * text=auto eol=lf
 
-# Windows 批处理/PowerShell 必须保留 CRLF, 否则 cmd.exe 解析异常
+# Windows 批处理/PowerShell 必须保留 CRLF.
+#
+# 这不是"风格问题" —— 批处理文件用 LF 行尾时, cmd.exe 会**按固定字节数读取**
+# 每一行, 结果是行被拦腰截断, 报出 "The system cannot find the path specified."
+# 或 "'hon' is not recognized as an internal or external command" 这种
+# 完全看不出原因的错误(cd 被切成 'd', Please 被切成 'lease').
+#
+# 本项目真实踩过这个坑: 写完 .bat 直接运行失败, 排查了一阵才发现是行尾.
+# 所以 *.bat / *.cmd / *.ps1 必须显式声明 eol=crlf.
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.ps1 text eol=crlf
+
+# Shell 脚本必须是 LF —— 反过来, 带 CRLF 的 .sh 在 Linux 上会因为
+# shebang 行末尾多出一个 \r 而报 "bad interpreter: No such file or directory"
+*.sh text eol=lf
 
 # 二进制文件不做任何换行符转换
 *.pdf binary

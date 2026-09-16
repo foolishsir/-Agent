@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# 同一个分支的旧运行自动取消 —— 连续推几次时不用等前面几次跑完
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 测试 (Python ${{ matrix.python-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12"]
+        include:
+          # Windows 单独跑一次: 本项目在 Windows 上踩过编码与行尾的坑,
+          # 只在 Linux 上跑 CI 会漏掉这类问题
+          - os: windows-latest
+            python-version: "3.12"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 安装 CPU 版 PyTorch
+        # 先装 CPU 版, 后面 requirements.txt 检测到 torch 已满足就不会再拉 CUDA 版
+        # (默认版会带 2.5GB 的 CUDA 运行时, CI 上纯属浪费)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 安装开发依赖
+        run: pip install ruff
+
+      - name: 代码检查
+        run: ruff check . --output-format=github
+
+      - name: 代码格式检查
+        run: ruff format --check .
+
+      - name: 运行测试
+        # 测试用假的 Embedding/精排实现, 不会加载真实模型,
+        # 所以 CI 上不需要下载任何模型
+        run: python -m pytest -q
+
+  frontend:
+    name: 前端渲染测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Markdown 渲染用例
+        # 从页面 HTML 里切出真实的渲染函数来跑用例,
+        # 覆盖列表/加粗/代码块/表格, 以及 XSS 转义
+        run: node frontend-tests/check-markdown.js
