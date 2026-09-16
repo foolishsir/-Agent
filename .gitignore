@@ -47,6 +47,11 @@ data/uploads/*
 data/chroma/*
 !data/.gitkeep
 
+# 评测工作区: 跑评测时自动生成的隔离环境(独立的 SQLite + Chroma 集合),
+# 体积可能很大且随时可重建, 不提交.
+# 注意 eval/results/ 是**要提交**的 —— 报告是简历/面试要用的证据.
+eval/.workspace/
+
 # ============================== 本地模型缓存 ===============================
 models/
 .cache/

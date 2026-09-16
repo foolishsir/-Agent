@@ -63,6 +63,8 @@ ignore = [
 # jieba 首次加载词典要 1~2 秒, sentence_transformers 会拉入 torch,
 # 都不该在模块导入阶段拖慢服务启动 —— 惰性导入是刻意的性能优化.
 "backend/app/services/retrieval/**" = ["PLC0415"]
+# 评测脚本是命令行工具, 输出就是给人在终端看的 —— print 是它们的对外接口.
+"eval/**" = ["T20", "PLC0415"]
 
 [tool.ruff.lint.isort]
 # 声明 app 为第一方包, 否则 ruff 会把 `from app.xxx` 误判为第三方,

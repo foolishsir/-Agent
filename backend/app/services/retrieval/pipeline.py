@@ -84,6 +84,47 @@ class RetrievedContext:
 
 
 @dataclass
+class RetrievalDebug:
+    """检索链路的**分阶段候选集**, 用于评测与线上排查.
+
+    为什么需要它: 用户问"为什么答案不对"时, 有三种完全不同的原因 ——
+
+    1. 召回阶段就没找到相关内容(向量和 BM25 都没命中)
+    2. 召回到了但排序太靠后(被 RRF 或精排压下去了)
+    3. 召回到了也排前面了, 但 LLM 没用对
+
+    只看最终结果无法区分这三者, 而它们的优化方向完全相反:
+    第 1 种要改分块或换 embedding 模型; 第 2 种要调融合/精排; 第 3 种要改 Prompt.
+
+    所以把每一阶段的候选集都留下来. 默认不采集(有内存开销), 由调用方按需开启.
+    """
+
+    vector_hits: list[RetrievedChunk] = field(default_factory=list)
+    bm25_hits: list[RetrievedChunk] = field(default_factory=list)
+    fused: list[RetrievedChunk] = field(default_factory=list)
+    deduped: list[RetrievedChunk] = field(default_factory=list)
+    reranked: list[RetrievedChunk] = field(default_factory=list)
+
+    def stage(self, name: str) -> list[RetrievedChunk]:
+        return {
+            "vector": self.vector_hits,
+            "bm25": self.bm25_hits,
+            "fused": self.fused,
+            "deduped": self.deduped,
+            "reranked": self.reranked,
+        }.get(name, [])
+
+    def sizes(self) -> dict[str, int]:
+        return {
+            "vector": len(self.vector_hits),
+            "bm25": len(self.bm25_hits),
+            "fused": len(self.fused),
+            "deduped": len(self.deduped),
+            "reranked": len(self.reranked),
+        }
+
+
+@dataclass
 class RetrievalResult:
     """一次检索的完整产出."""
 
@@ -94,6 +135,8 @@ class RetrievalResult:
     #: 是否判定为"文档中无相关内容"
     refused: bool = False
     refuse_reason: str = ""
+    #: 分阶段候选集(默认不采集)
+    debug: RetrievalDebug | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -111,8 +154,16 @@ async def retrieve(
     *,
     user_id: str,
     doc_ids: list[str],
+    debug: bool = False,
 ) -> RetrievalResult:
-    """执行完整检索链路."""
+    """执行完整检索链路.
+
+    Args:
+        debug: 采集分阶段候选集(见 ``RetrievalDebug``).
+               评测时必须开启, 否则候选被截断到 ``final_top_k``,
+               Recall@10 这类指标算不出来. 线上排查问题也可以临时打开,
+               代价是每阶段多留一份引用(不是深拷贝, 开销很小).
+    """
     result = RetrievalResult()
 
     if not doc_ids:
@@ -136,6 +187,9 @@ async def retrieve(
     result.trace.add("vector_recall", count=len(vector_hits), cost_ms=vector_ms)
     result.trace.add("bm25_recall", count=len(bm25_hits), cost_ms=bm25_ms)
 
+    if debug:
+        result.debug = RetrievalDebug(vector_hits=vector_hits, bm25_hits=bm25_hits)
+
     if not vector_hits and not bm25_hits:
         result.refused = True
         result.refuse_reason = "未检索到任何相关内容"
@@ -154,12 +208,19 @@ async def retrieve(
     deduped = dedupe_by_parent(fused)
     result.trace.add("dedupe_parent", count=len(deduped), cost_ms=0.0)
 
+    if debug and result.debug is not None:
+        result.debug.fused = fused
+        result.debug.deduped = deduped
+
     # ---------------- ⑤ 精排 ----------------
+    # 注意: 这里只取 final_top_k 条. 评测想要 Recall@10 时这个截断会挡住,
+    # 所以 debug 模式下调大取样数(评测才有意义).
+    top_n = settings.final_top_k
     started = time.perf_counter()
     reranker = get_reranker()
     if reranker is not None and deduped:
         candidates = await asyncio.to_thread(
-            reranker.rerank, query, deduped, top_n=settings.final_top_k
+            reranker.rerank, query, deduped, top_n=(top_n if not debug else len(deduped))
         )
         result.trace.add(
             "rerank",
@@ -170,8 +231,18 @@ async def retrieve(
     else:
         # 未启用精排时退化为按融合分数截断.
         # 这样即使关掉重排, 链路依然可用(只是精度下降), 便于做 A/B 对比实验.
-        candidates = sorted(deduped, key=lambda c: c.score, reverse=True)[: settings.final_top_k]
+        candidates = sorted(deduped, key=lambda c: c.score, reverse=True)
+        if not debug:
+            candidates = candidates[:top_n]
         result.trace.add("rerank", count=len(candidates), cost_ms=0.0, enabled=False)
+
+    if debug and result.debug is not None:
+        result.debug.reranked = candidates
+
+    # 评测模式下候选集已经完整保留, 但下游生成仍然只该看到 final_top_k 条 ——
+    # 否则评测出来的上下文长度和线上不一致, 指标就没有参考价值了.
+    if debug:
+        candidates = candidates[: settings.final_top_k]
 
     if not candidates:
         result.refused = True

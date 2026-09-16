@@ -1,0 +1,1815 @@
+{
+  "config": {
+    "name": "分块: 固定长度(基线)",
+    "strategy": "fixed",
+    "parent_size": 1500,
+    "child_size": 300,
+    "overlap": 50,
+    "vector_top_k": 25,
+    "bm25_top_k": 20,
+    "rerank_enabled": true,
+    "final_top_k": 5,
+    "note": "不做任何语义考量, 纯按字符硬切。作为对比基线"
+  },
+  "corpus": {
+    "doc_id": "f2ab77acd50249b9835e7264be228820",
+    "pages": 2,
+    "chars": 2718,
+    "parents": 3,
+    "children": 12,
+    "ingest_ms": 23484.0
+  },
+  "stages": {
+    "vector_only": {
+      "name": "① 纯向量召回",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.6098,
+        "recall@3": 0.7561,
+        "recall@5": 0.878,
+        "recall@10": 1.0
+      },
+      "precision_at": {
+        "precision@1": 1.0,
+        "precision@3": 0.3577,
+        "precision@5": 0.2146,
+        "precision@10": 0.1073
+      },
+      "mrr": 0.71,
+      "empty_results": 0
+    },
+    "bm25_only": {
+      "name": "② 纯关键词召回",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.6098,
+        "recall@3": 0.8049,
+        "recall@5": 0.878,
+        "recall@10": 0.9512
+      },
+      "precision_at": {
+        "precision@1": 1.0,
+        "precision@3": 0.3577,
+        "precision@5": 0.2146,
+        "precision@10": 0.1113
+      },
+      "mrr": 0.7346,
+      "empty_results": 0
+    },
+    "rrf_fused": {
+      "name": "③ +RRF 融合",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.6585,
+        "recall@3": 0.7317,
+        "recall@5": 0.8537,
+        "recall@10": 1.0
+      },
+      "precision_at": {
+        "precision@1": 1.0,
+        "precision@3": 0.3577,
+        "precision@5": 0.2146,
+        "precision@10": 0.1073
+      },
+      "mrr": 0.7427,
+      "empty_results": 0
+    },
+    "deduped": {
+      "name": "④ +父块去重",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.6585,
+        "recall@3": 0.7561,
+        "recall@5": 0.7561,
+        "recall@10": 0.7561
+      },
+      "precision_at": {
+        "precision@1": 0.7561,
+        "precision@3": 0.2683,
+        "precision@5": 0.2683,
+        "precision@10": 0.2683
+      },
+      "mrr": 0.6951,
+      "empty_results": 0
+    },
+    "reranked": {
+      "name": "⑤ +Cross-Encoder 精排",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.7561,
+        "recall@3": 0.7561,
+        "recall@5": 0.7561,
+        "recall@10": 0.7561
+      },
+      "precision_at": {
+        "precision@1": 0.7561,
+        "precision@3": 0.2683,
+        "precision@5": 0.2683,
+        "precision@10": 0.2683
+      },
+      "mrr": 0.7561,
+      "empty_results": 0
+    },
+    "final_parents": {
+      "name": "⑥ 最终送入 Prompt(父块)",
+      "questions": 46,
+      "answered_questions": 41,
+      "recall_at": {
+        "recall@1": 0.8293,
+        "recall@3": 1.0,
+        "recall@5": 1.0,
+        "recall@10": 1.0
+      },
+      "precision_at": {
+        "precision@1": 1.0,
+        "precision@3": 0.3577,
+        "precision@5": 0.3577,
+        "precision@10": 0.3577
+      },
+      "mrr": 0.9024,
+      "empty_results": 0
+    }
+  },
+  "refusal": {
+    "answerable": 41,
+    "unanswerable": 5,
+    "false_refusals": 0,
+    "false_refusal_rate": 0.0,
+    "false_answers": 5,
+    "false_answer_rate": 1.0
+  },
+  "generation": {},
+  "latency": {
+    "count": 46,
+    "avg": 203.6,
+    "p50": 65.5,
+    "p95": 104.4,
+    "p99": 3535.5,
+    "max": 6322.6
+  },
+  "misses": {
+    "reranked": [
+      {
+        "id": "q003",
+        "question": "这份技能特长中提到了哪些数据库？",
+        "ranks": [
+          null
+        ]
+      },
+      {
+        "id": "q004",
+        "question": "Redis 中常见的缓存问题有哪些，分别怎么解决？",
+        "ranks": [
+          null
+        ]
+      },
+      {
+        "id": "q009",
+        "question": "这个国资局项目管理平台使用了哪些开发语言和技术栈？",
+        "ranks": [
+          null
+        ]
+      },
+      {
+        "id": "q015",
+        "question": "那个叫张煜的人想找什么样的工作？",
+        "ranks": [
+          null
+        ]
+      },
+      {
+        "id": "q018",
+        "question": "我简历里写的那些技术能力，都包括哪些数据存储方面的东西？",
+        "ranks": [
+          null
+        ]
+      }
+    ],
+    "final_parents": []
+  },
+  "per_question": [
+    {
+      "id": "q001",
+      "question": "张煜的求职意向是什么？",
+      "category": "exact_match",
+      "evidences": [
+        "张煜科求职意向:全栈开发实习生|一周内到岗"
+      ],
+      "refused": false,
+      "top_score": 0.9885,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9885
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0403
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0029
+        }
+      ],
+      "cost_ms": 6322.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q002",
+      "question": "西安石油大学计算机科学与技术本科专业的GPA是多少？",
+      "category": "exact_match",
+      "evidences": [
+        "专业成绩:GPA 3.23/40 (专业前15%)"
+      ],
+      "refused": false,
+      "top_score": 0.9998,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9998
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0332
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0033
+        }
+      ],
+      "cost_ms": 129.0,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q003",
+      "question": "这份技能特长中提到了哪些数据库？",
+      "category": "exact_match",
+      "evidences": [
+        "熟悉MySQL,ORACLE等数据库的基本语法熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.2471,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.2471
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.049
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0178
+        }
+      ],
+      "cost_ms": 108.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 10,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q004",
+      "question": "Redis 中常见的缓存问题有哪些，分别怎么解决？",
+      "category": "semantic",
+      "evidences": [
+        "熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.5771,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.5771
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0781
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0355
+        }
+      ],
+      "cost_ms": 92.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q005",
+      "question": "在纮华电子科技的实习中，针对百万级双表信息同步数据丢失问题做了什么？",
+      "category": "semantic",
+      "evidences": [
+        "解决百万级双表信息同步过程中数据部分丢失的问题,完善处理逻辑防止数据传输过程中宕机问题导致信息传输不完整。"
+      ],
+      "refused": false,
+      "top_score": 0.9995,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9995
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0932
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.008
+        }
+      ],
+      "cost_ms": 76.0,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q006",
+      "question": "在西安云锦汇信息科技有限公司担任Java全栈开发期间，前端页面开发效率提升了多少？",
+      "category": "exact_match",
+      "evidences": [
+        "根据原型图结合AI和内部规范的组件来快速搭建前端页面,后续根据UI需求对前端页面进行人工细节调整,前端页面效率整体提升40%。"
+      ],
+      "refused": false,
+      "top_score": 0.9995,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9995
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0164
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0119
+        }
+      ],
+      "cost_ms": 75.0,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q007",
+      "question": "在网卡生产项目中，投板时需要检查哪些耗材的使用情况？",
+      "category": "semantic",
+      "evidences": [
+        "同时在进行投板的时候需要检查钢刀和锡膏的使用情况,检测钢刀使用的时间和使用次数,定期需要更换进行维护,锡膏需要检查用量是否充足。"
+      ],
+      "refused": false,
+      "top_score": 0.9864,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9864
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.4926
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0018
+        }
+      ],
+      "cost_ms": 66.8,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q008",
+      "question": "在搭建MCP+知识图谱实现智能问答系统时，采用了什么上下文分层方式来缓解Token爆炸问题？",
+      "category": "exact_match",
+      "evidences": [
+        "通过“热,温,冷”上下文分层方式缓解Token爆炸的问题,缓解服务器负载,减少AI出现幻觉的现象。"
+      ],
+      "refused": false,
+      "top_score": 0.9999,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9999
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.1826
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0019
+        }
+      ],
+      "cost_ms": 60.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q009",
+      "question": "这个国资局项目管理平台使用了哪些开发语言和技术栈？",
+      "category": "exact_match",
+      "evidences": [
+        "开发语言:Java技术栈:Spring Boot、MyBatis-Plus、达梦数据库、Redis、Nginx、Vue 3、Docker、nacos、ElementUl、 Gateway"
+      ],
+      "refused": false,
+      "top_score": 0.3791,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.3791
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.2232
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0194
+        }
+      ],
+      "cost_ms": 61.2,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q010",
+      "question": "Watchdog 看门狗机制是基于什么技术实现锁自动续期的？",
+      "category": "exact_match",
+      "evidences": [
+        "Watchdog 看门狗机制,理解其基于 Netty 定时任务实现锁自动续期的原理"
+      ],
+      "refused": false,
+      "top_score": 0.9978,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9978
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0009
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0006
+        }
+      ],
+      "cost_ms": 69.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q011",
+      "question": "在Redis分布式锁的实现中，如何保证加锁、解锁和续期操作的原子性，并让Hash结构支持锁的可重入？",
+      "category": "semantic",
+      "evidences": [
+        "Lua 脚本 如何保证加锁、解锁、续期的原子性,以及 Hash 结构如何实现锁的可重入。"
+      ],
+      "refused": false,
+      "top_score": 0.9996,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9996
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.2267
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.1146
+        }
+      ],
+      "cost_ms": 76.5,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q012",
+      "question": "在秒杀场景下如何防止库存超卖？",
+      "category": "semantic",
+      "evidences": [
+        "主导原子性库存扣减方案、基于 Redis Lua 脚本实现库存原子扣减解决秒杀场景超卖问题。"
+      ],
+      "refused": false,
+      "top_score": 0.9953,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.9953
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0295
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0002
+        }
+      ],
+      "cost_ms": 64.8,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 7,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q013",
+      "question": "库存管理模块的数据库设计和接口设计由谁负责？",
+      "category": "semantic",
+      "evidences": [
+        "负责库存管理模块数据库的设计和接口的设计,开发库存管理模块的后端代码。"
+      ],
+      "refused": false,
+      "top_score": 0.9995,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.9995
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.4786
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0225
+        }
+      ],
+      "cost_ms": 72.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q014",
+      "question": "这个人对自己的工作态度和性格特点有哪些自我评价？",
+      "category": "semantic",
+      "evidences": [
+        "自我评价工作认真,拥有较好的抗压能力,热爱编程,具备扎实的自学能力和强烈的技术热傅。善于解决问题,乐于钻研新技术,性格踏实认真,具备良好的团队协作能力"
+      ],
+      "refused": false,
+      "top_score": 0.7706,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.7706
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0002
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0001
+        }
+      ],
+      "cost_ms": 70.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q015",
+      "question": "那个叫张煜的人想找什么样的工作？",
+      "category": "paraphrase",
+      "evidences": [
+        "张煜科求职意向:全栈开发实习生|一周内到岗"
+      ],
+      "refused": false,
+      "top_score": 0.0234,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0234
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0156
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0009
+        }
+      ],
+      "cost_ms": 61.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q016",
+      "question": "西安石油大学计算机科学与技术专业的本科平均成绩是多少？",
+      "category": "paraphrase",
+      "evidences": [
+        "专业成绩:GPA 3.23/40 (专业前15%)"
+      ],
+      "refused": false,
+      "top_score": 0.9992,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9992
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.1347
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0003
+        }
+      ],
+      "cost_ms": 67.1,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q017",
+      "question": "西安石油大学计算机科学与技术这个本科专业，学生一般要拿到多少平均绩点？",
+      "category": "paraphrase",
+      "evidences": [
+        "专业成绩:GPA 3.23/40 (专业前15%)"
+      ],
+      "refused": false,
+      "top_score": 0.9977,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9977
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0348
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0015
+        }
+      ],
+      "cost_ms": 59.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 9,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q018",
+      "question": "我简历里写的那些技术能力，都包括哪些数据存储方面的东西？",
+      "category": "paraphrase",
+      "evidences": [
+        "熟悉MySQL,ORACLE等数据库的基本语法熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.0141,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0141
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0122
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0057
+        }
+      ],
+      "cost_ms": 58.2,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q019",
+      "question": "这份简历里写到了哪些跟数据存储相关的技术？",
+      "category": "paraphrase",
+      "evidences": [
+        "熟悉MySQL,ORACLE等数据库的基本语法熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.0099,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0099
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0044
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0031
+        }
+      ],
+      "cost_ms": 62.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q020",
+      "question": "用 Redis 做缓存的时候一般会遇到哪些坑，各自该怎么处理？",
+      "category": "paraphrase",
+      "evidences": [
+        "熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.3826,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.3826
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.2863
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0037
+        }
+      ],
+      "cost_ms": 65.9,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q021",
+      "question": "用 Redis 做缓存的时候一般会踩哪些坑，每种情况该怎么处理？",
+      "category": "paraphrase",
+      "evidences": [
+        "熟悉Redis,了解内存淘汰策略、持久化机制及缓存雪崩、穿透、击穿等问题的解决方案。"
+      ],
+      "refused": false,
+      "top_score": 0.3508,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.3508
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.232
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0473
+        }
+      ],
+      "cost_ms": 65.5,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q022",
+      "question": "在纮华电子科技实习的时候，遇到那种上百万条、两张表要同步结果数据对不上的情况，当时是怎么处理的？",
+      "category": "paraphrase",
+      "evidences": [
+        "解决百万级双表信息同步过程中数据部分丢失的问题,完善处理逻辑防止数据传输过程中宕机问题导致信息传输不完整。"
+      ],
+      "refused": false,
+      "top_score": 0.9943,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9943
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0301
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0022
+        }
+      ],
+      "cost_ms": 66.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q023",
+      "question": "在纮华电子科技实习的时候，遇到那种上百万条数据、两张表要对上的同步丢数据问题，当时是怎么处理的？",
+      "category": "paraphrase",
+      "evidences": [
+        "解决百万级双表信息同步过程中数据部分丢失的问题,完善处理逻辑防止数据传输过程中宕机问题导致信息传输不完整。"
+      ],
+      "refused": false,
+      "top_score": 0.9991,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9991
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0819
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.016
+        }
+      ],
+      "cost_ms": 64.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q024",
+      "question": "你在那家公司做Java全栈的时候，前端做页面的速度大概快了多少？",
+      "category": "paraphrase",
+      "evidences": [
+        "根据原型图结合AI和内部规范的组件来快速搭建前端页面,后续根据UI需求对前端页面进行人工细节调整,前端页面效率整体提升40%。"
+      ],
+      "refused": false,
+      "top_score": 0.9373,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9373
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.014
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0005
+        }
+      ],
+      "cost_ms": 67.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q025",
+      "question": "你在那家公司做Java全栈的时候，写前端页面的速度大概快了多少？",
+      "category": "paraphrase",
+      "evidences": [
+        "根据原型图结合AI和内部规范的组件来快速搭建前端页面,后续根据UI需求对前端页面进行人工细节调整,前端页面效率整体提升40%。"
+      ],
+      "refused": false,
+      "top_score": 0.9074,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9074
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0116
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0008
+        }
+      ],
+      "cost_ms": 63.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q026",
+      "question": "做网卡这类产品的时候，每次把板子送去生产，得看看哪些消耗品用得怎么样，这些都要查些什么？",
+      "category": "paraphrase",
+      "evidences": [
+        "同时在进行投板的时候需要检查钢刀和锡膏的使用情况,检测钢刀使用的时间和使用次数,定期需要更换进行维护,锡膏需要检查用量是否充足。"
+      ],
+      "refused": false,
+      "top_score": 0.1303,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.1303
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0027
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0002
+        }
+      ],
+      "cost_ms": 68.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q027",
+      "question": "做网卡的时候，每次投板之前要确认哪些材料够不够用？",
+      "category": "paraphrase",
+      "evidences": [
+        "同时在进行投板的时候需要检查钢刀和锡膏的使用情况,检测钢刀使用的时间和使用次数,定期需要更换进行维护,锡膏需要检查用量是否充足。"
+      ],
+      "refused": false,
+      "top_score": 0.8763,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.8763
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0725
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0003
+        }
+      ],
+      "cost_ms": 67.8,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q028",
+      "question": "我在做智能问答系统，把知识图谱和那个MCP结合起来用，但对话一长就特别费token，你们是怎么把上下文拆开管理的？",
+      "category": "paraphrase",
+      "evidences": [
+        "通过“热,温,冷”上下文分层方式缓解Token爆炸的问题,缓解服务器负载,减少AI出现幻觉的现象。"
+      ],
+      "refused": false,
+      "top_score": 0.9768,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9768
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.4497
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0042
+        }
+      ],
+      "cost_ms": 68.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q029",
+      "question": "我在做一个能回答问题的系统，把知识库和那种结构化关系网络结合起来用，但对话一长就特别费资源，想知道一般怎么把要处理的内容分成不同层次来减轻这个负担？",
+      "category": "paraphrase",
+      "evidences": [
+        "通过“热,温,冷”上下文分层方式缓解Token爆炸的问题,缓解服务器负载,减少AI出现幻觉的现象。"
+      ],
+      "refused": false,
+      "top_score": 0.1139,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.1139
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0233
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0087
+        }
+      ],
+      "cost_ms": 69.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q030",
+      "question": "这个给政府部门用的项目管理系统是用什么做的？",
+      "category": "paraphrase",
+      "evidences": [
+        "开发语言:Java技术栈:Spring Boot、MyBatis-Plus、达梦数据库、Redis、Nginx、Vue 3、Docker、nacos、ElementUl、 Gateway"
+      ],
+      "refused": false,
+      "top_score": 0.0156,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0156
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0139
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0087
+        }
+      ],
+      "cost_ms": 66.7,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q031",
+      "question": "这个政府部门的项目管理平台是用什么技术做的？",
+      "category": "paraphrase",
+      "evidences": [
+        "开发语言:Java技术栈:Spring Boot、MyBatis-Plus、达梦数据库、Redis、Nginx、Vue 3、Docker、nacos、ElementUl、 Gateway"
+      ],
+      "refused": false,
+      "top_score": 0.0329,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0329
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0191
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0008
+        }
+      ],
+      "cost_ms": 64.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q032",
+      "question": "那个自动给锁延长时间的功能，底层是怎么做到的？",
+      "category": "paraphrase",
+      "evidences": [
+        "Watchdog 看门狗机制,理解其基于 Netty 定时任务实现锁自动续期的原理"
+      ],
+      "refused": false,
+      "top_score": 0.2013,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.2013
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0368
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0051
+        }
+      ],
+      "cost_ms": 55.2,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q033",
+      "question": "后台任务处理到一半还没结束，怎么让那个锁不会自己过期？",
+      "category": "paraphrase",
+      "evidences": [
+        "Watchdog 看门狗机制,理解其基于 Netty 定时任务实现锁自动续期的原理"
+      ],
+      "refused": false,
+      "top_score": 0.5602,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.5602
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0033
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0018
+        }
+      ],
+      "cost_ms": 57.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 6,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q034",
+      "question": "我最近在用Redis做分布式锁，想请教一下：怎么保证上锁、释放锁和自动延长锁时间这几个步骤不会被打断？还有，如果同一个线程想多次进入同一个锁，用哈希结构怎么实现可重入？",
+      "category": "paraphrase",
+      "evidences": [
+        "Lua 脚本 如何保证加锁、解锁、续期的原子性,以及 Hash 结构如何实现锁的可重入。"
+      ],
+      "refused": false,
+      "top_score": 0.9953,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9953
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.3496
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.2669
+        }
+      ],
+      "cost_ms": 69.2,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q035",
+      "question": "用Redis做分布式锁的时候，怎么确保上锁、释放锁还有自动延长锁时间这几步不会被打断？另外如果用哈希来存锁的信息，怎么让同一个线程能重复拿到同一把锁？",
+      "category": "paraphrase",
+      "evidences": [
+        "Lua 脚本 如何保证加锁、解锁、续期的原子性,以及 Hash 结构如何实现锁的可重入。"
+      ],
+      "refused": false,
+      "top_score": 0.9825,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9825
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.1604
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0921
+        }
+      ],
+      "cost_ms": 65.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q036",
+      "question": "抢购的时候怎么保证商品不会卖出去超过库存的数量？",
+      "category": "paraphrase",
+      "evidences": [
+        "主导原子性库存扣减方案、基于 Redis Lua 脚本实现库存原子扣减解决秒杀场景超卖问题。"
+      ],
+      "refused": false,
+      "top_score": 0.0585,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0585
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0001
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0
+        }
+      ],
+      "cost_ms": 60.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q037",
+      "question": "我们做那种限时抢购的活动，怎么保证东西不会卖出去比实际库存还多？",
+      "category": "paraphrase",
+      "evidences": [
+        "主导原子性库存扣减方案、基于 Redis Lua 脚本实现库存原子扣减解决秒杀场景超卖问题。"
+      ],
+      "refused": false,
+      "top_score": 0.0806,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0806
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0028
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0
+        }
+      ],
+      "cost_ms": 64.2,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q038",
+      "question": "谁负责设计库存这块的数据库和接口？",
+      "category": "paraphrase",
+      "evidences": [
+        "负责库存管理模块数据库的设计和接口的设计,开发库存管理模块的后端代码。"
+      ],
+      "refused": false,
+      "top_score": 0.9934,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.9934
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0384
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0066
+        }
+      ],
+      "cost_ms": 63.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q039",
+      "question": "那个管货物进出的功能，它的数据存储结构和对外接口是谁在弄？",
+      "category": "paraphrase",
+      "evidences": [
+        "负责库存管理模块数据库的设计和接口的设计,开发库存管理模块的后端代码。"
+      ],
+      "refused": false,
+      "top_score": 0.0047,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0047
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.002
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0015
+        }
+      ],
+      "cost_ms": 64.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q040",
+      "question": "他自己觉得自己干活是什么样的人，性格上又是怎么评价自己的？",
+      "category": "paraphrase",
+      "evidences": [
+        "自我评价工作认真,拥有较好的抗压能力,热爱编程,具备扎实的自学能力和强烈的技术热傅。善于解决问题,乐于钻研新技术,性格踏实认真,具备良好的团队协作能力"
+      ],
+      "refused": false,
+      "top_score": 0.0881,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0881
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0001
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0
+        }
+      ],
+      "cost_ms": 59.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q041",
+      "question": "他自己是怎么看待自己平时的工作表现和性格的？",
+      "category": "paraphrase",
+      "evidences": [
+        "自我评价工作认真,拥有较好的抗压能力,热爱编程,具备扎实的自学能力和强烈的技术热傅。善于解决问题,乐于钻研新技术,性格踏实认真,具备良好的团队协作能力"
+      ],
+      "refused": false,
+      "top_score": 0.2717,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.2717
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0001
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0
+        }
+      ],
+      "cost_ms": 47.6,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q042",
+      "question": "张煜科在纮华电子科技实习期间，团队规模有多大，是否有导师带教？",
+      "category": "no_answer",
+      "evidences": [],
+      "refused": false,
+      "top_score": 0.4277,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.4277
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0127
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0063
+        }
+      ],
+      "cost_ms": 47.0,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 9,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q043",
+      "question": "张煜科在西安云锦汇信息科技有限公司实习时的薪资待遇和转正机会如何？",
+      "category": "no_answer",
+      "evidences": [],
+      "refused": false,
+      "top_score": 0.9913,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9913
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.008
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0017
+        }
+      ],
+      "cost_ms": 66.3,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q044",
+      "question": "张煜科在体学通项目中负责的库存管理模块，日均订单量和并发峰值是多少？",
+      "category": "no_answer",
+      "evidences": [],
+      "refused": false,
+      "top_score": 0.8414,
+      "contexts": [
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.8414
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.7625
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0015
+        }
+      ],
+      "cost_ms": 62.4,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q045",
+      "question": "张煜科是否有参与过开源项目或发表过技术博客？",
+      "category": "no_answer",
+      "evidences": [],
+      "refused": false,
+      "top_score": 0.298,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.298
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0079
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0005
+        }
+      ],
+      "cost_ms": 60.8,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 11,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    },
+    {
+      "id": "q046",
+      "question": "张煜科在西安石油大学的专业排名前15%，是否有获得过奖学金或竞赛奖项？",
+      "category": "no_answer",
+      "evidences": [],
+      "refused": false,
+      "top_score": 0.9997,
+      "contexts": [
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.9997
+        },
+        {
+          "page": 2,
+          "section": "",
+          "score": 0.0026
+        },
+        {
+          "page": 1,
+          "section": "",
+          "score": 0.0003
+        }
+      ],
+      "cost_ms": 64.8,
+      "debug_sizes": {
+        "vector": 12,
+        "bm25": 12,
+        "fused": 12,
+        "deduped": 3,
+        "reranked": 3
+      }
+    }
+  ],
+  "threshold_analysis": {
+    "suggested": 0.005,
+    "rationale": "在 43 个候选阈值上扫描, 使加权损失最小(误答权重 2)。两类样本**存在重叠区** [1.000, 0.005], 无法完全分开 —— 这是检索质量的真实上限, 靠调阈值解决不了, 要继续提升需要改分块或换 embedding 模型",
+    "est_false_refusal": 0,
+    "est_false_answer": 5,
+    "answerable": {
+      "count": 41,
+      "min": 0.005,
+      "max": 1.0,
+      "avg": 0.608
+    },
+    "no_answer": {
+      "count": 5,
+      "min": 0.298,
+      "max": 1.0,
+      "avg": 0.712
+    }
+  }
+}
