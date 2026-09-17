@@ -83,9 +83,12 @@ async def _load_resume(doc_id: str) -> str:
 
 
 def _resolve_skills(skill_ids: list[str]) -> list[Any]:
-    """解析勾选的 SKILL. 返回空列表表示用默认风格(不报错)."""
-    if not skill_ids:
-        return []
+    """解析勾选的 SKILL.
+
+    空列表表示"走默认面试风格", 这是合法状态 —— 用户可能只想快速试一下,
+    不想先研究 SKILL 怎么写。约束由 ``compose_skills([])`` 给兜底值,
+    不会出现"因为没勾 SKILL 所以追问没有上限"的情况。
+    """
     return get_skill_registry().resolve([str(s) for s in skill_ids])
 
 
@@ -199,7 +202,7 @@ async def next_turn(payload: dict[str, Any]) -> dict[str, Any]:
 
     skill_ids = [str(s) for s in (payload.get("skill_ids") or [])]
     skills = _resolve_skills(skill_ids)
-    resume = await _load_resume(doc_id)[:MAX_RESUME_CHARS]
+    resume = (await _load_resume(doc_id))[:MAX_RESUME_CHARS]
 
     state = _restore_state(payload, resume, skill_ids)
     result = await next_question(state, skills)

@@ -20,7 +20,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ParamInvalidError
 from app.core.logging import get_logger, log_kv
 from app.services.skills.base import Skill, parse_skill
 
@@ -36,6 +36,24 @@ DEFAULT_SKILLS_DIR = Path(__file__).resolve().parents[4] / "skills"
 #: 限制成 2 个是刻意的: 3 个以上风格会互相冲突 ——
 #: 一个说要深挖三层、另一个说要快速覆盖, 模型会给出四不像的面试.
 MAX_SELECTED_SKILLS = 2
+
+#: 不勾任何 SKILL 时的兜底约束.
+#:
+#: 有兜底值很重要: 如果"没勾 SKILL"等于"没有约束", 那追问会永远停不下来、
+#: 轮次也没有上限 —— 一个沉默的默认值比一个显式的默认值危险得多.
+DEFAULT_MAX_FOLLOW_UP = 3
+DEFAULT_MAX_TURNS = 20
+
+#: 不勾任何 SKILL 时的中性风格说明.
+#: 刻意写得短 —— 它的作用只是"别让模型自由发挥", 而不是替用户定义面试风格.
+DEFAULT_INTERVIEW_PROMPT = """你是一位技术面试官。
+
+- 只问候选人简历里出现过的内容。不确定某个词是否在简历里, 就不要问。
+- 每次只问一个问题, 不要做评价、不要给正确答案。
+- 回答停留在"用过/了解"层面就追问实现细节; 回答里有数字就追问测量口径;
+  回答里有技术选型就追问被放弃的方案。
+- 回答已经具体到能说清取舍时, 换下一个话题 —— 不要为了难而难。
+- 只输出问题本身, 不要任何前缀、铺垫或过渡。"""
 
 
 class SkillRegistry:
@@ -119,13 +137,22 @@ class SkillRegistry:
         return skill
 
     def resolve(self, skill_ids: list[str]) -> list[Skill]:
-        """把前端传来的 id 列表解析成 Skill 对象, 并做数量校验."""
+        """把前端传来的 id 列表解析成 Skill 对象, 并做数量校验.
+
+        数量校验发生在**去重之前** —— 传 ``[a, b, a]`` 这种带重复的列表
+        应该直接拒绝, 而不是"去重后剩 2 个所以放行".
+        前端的勾选框本来就不可能产生重复项, 出现重复说明调用方有问题,
+        与其猜他的意图, 不如报错。
+        """
         if not skill_ids:
-            raise NotFoundError("至少需要启用一个 SKILL")
+            return []
 
         if len(skill_ids) > MAX_SELECTED_SKILLS:
-            raise NotFoundError(
-                f"最多同时启用 {MAX_SELECTED_SKILLS} 个 SKILL, 选了 {len(skill_ids)} 个"
+            # 用 ParamInvalidError 而不是 NotFoundError:
+            # "选多了"是请求参数不对(400), 不是"资源找不到"(404)。
+            # 返回 404 会让调用方以为是 SKILL 不存在, 排查方向完全跑偏。
+            raise ParamInvalidError(
+                f"最多同时启用 {MAX_SELECTED_SKILLS} 个 SKILL, 传了 {len(skill_ids)} 个"
             )
 
         # 去重但保持顺序 —— 第一个是"首要 SKILL", 顺序会影响 Prompt 结构
@@ -168,7 +195,16 @@ def compose_skills(skills: list[Skill]) -> tuple[str, dict[str, object]]:
     用户勾一个宽松的 SKILL 就能绕过另一个的追问上限.
     """
     if not skills:
-        raise NotFoundError("至少需要一个 SKILL 才能组合")
+        # 一个 SKILL 都不勾是合法状态 —— 用户可能只想用系统的默认面试风格。
+        # 这时给一份中性的风格说明和宽松的兜底约束:
+        # 追问上限默认 3 层(和内置 SKILL 一致), 轮次上限 20,
+        # 不然 "0 个 SKILL" 会变成"可以无限追问无限轮次", 那是很糟的默认值。
+        return DEFAULT_INTERVIEW_PROMPT, {
+            "max_follow_up": DEFAULT_MAX_FOLLOW_UP,
+            "max_turns": DEFAULT_MAX_TURNS,
+            "require_evidence": False,
+            "allow_finish": True,
+        }
 
     parts: list[str] = []
     for index, skill in enumerate(skills):
@@ -211,6 +247,9 @@ def reset_skill_registry_for_test() -> None:
 
 
 __all__ = [
+    "DEFAULT_INTERVIEW_PROMPT",
+    "DEFAULT_MAX_FOLLOW_UP",
+    "DEFAULT_MAX_TURNS",
     "DEFAULT_SKILLS_DIR",
     "MAX_SELECTED_SKILLS",
     "SKILL_FILENAME",
