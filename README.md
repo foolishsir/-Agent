@@ -38,6 +38,7 @@
 | ⚙️ **网页配置** | API Key、模型、检索参数全部在网页上改，**保存即生效不用重启** |
 | 📊 **量化评测** | Golden Set + Recall@K / MRR / 拒答率，参数对比有数据支撑 |
 | 🎤 **模拟面试 Agent** | 上传简历 → 勾选 SKILL → 面试官主动提问、**按回答质量动态追问**、最后出复盘报告 |
+| 🗣️ **语音面试** | 按住说话 → Paraformer 识别成文字；面试官提问自动朗读出来（edge-tts） |
 
 ---
 
@@ -305,6 +306,45 @@ DOCMIND_WARMUP_ON_STARTUP=false python scripts/start.py
 
 </details>
 
+<details>
+<summary><b>语音功能怎么开？两个 Key 是一回事吗？</b></summary>
+
+**不是一回事，这是最容易搞混的地方：**
+
+| 配置项 | 用在哪 | 必需吗 |
+|---|---|---|
+| **大模型 API Key** | 问答、面试提问、复盘（DeepSeek） | 必需 |
+| **阿里云百炼 Key** | **只**用于语音识别（Paraformer ASR） | 只在要用语音输入时必需 |
+
+语音输出（edge-tts）**不需要任何 Key**，免费，只要是联网环境。
+
+**三步开启：**
+
+1. 「设置 → 语音」
+2. 语音输出默认已经是 `edge`，装上依赖即可：`pip install edge-tts`
+3. 要用语音输入，把**阿里云百炼 Key** 填进去（[在百炼控制台申请](https://bailian.console.aliyun.com/)）
+
+没配也不会出错 —— 面试页的录音按钮会置灰，鼠标悬停能看到具体原因，
+文字面试照常可用。
+
+**自检命令**（会真实调一次 edge-tts 和 Paraformer）：
+
+```bash
+python backend/scripts/smoke_speech.py
+python backend/scripts/smoke_speech.py --audio 我的录音.wav   # 额外测识别
+```
+
+**语音相关说明：**
+
+- 录音格式固定 **16kHz 单声道 WAV**，由前端直接采集（不装 ffmpeg）
+- 单段录音上限 180 秒，可配
+- 识别走**云端**（阿里云），音频会上传；要完全离线得换本地 Whisper
+- 朗读前会先做**口语化转换**（去掉 `**`、`[1]`、URL 等），
+  想知道某段文字会被读成什么样，用 `POST /api/v1/speech/spoken-text`
+
+</details>
+
+
 
 <details>
 <summary><b>问答报「未配置大模型 API Key」</b></summary>
@@ -491,7 +531,7 @@ docmind/
 │   │   ├── main.py                应用工厂 / 生命周期 / 全局异常
 │   │   ├── static/index.html      前端控制台(单文件, 零构建)
 │   │   ├── core/                  配置 · 日志 · 异常 · 响应 · 中间件
-│   │   ├── api/v1/                health / documents / chat / conversations / skills / interview / settings
+│   │   ├── api/v1/                health / documents / chat / conversations / skills / interview / speech / settings
 │   │   ├── models/                ORM 模型
 │   │   ├── services/
 │   │   │   ├── parser/            PDF 解析与清洗
@@ -503,9 +543,10 @@ docmind/
 │   │   │   ├── rag/               编排 + 引用校验
 │   │   │   ├── skills/            SKILL 加载/解析/组合
 │   │   │   ├── interview/         面试官 Agent(提纲/决策/可溯源校验)
+│   │   │   ├── speech/            语音(ASR / TTS / 口语化转换)
 │   │   │   └── config_service.py  运行时配置
 │   │   └── db/                    异步会话与引擎
-│   ├── tests/                     264 个测试
+│   ├── tests/                     334 个测试
 │   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测 / 面试链路冒烟
 ├── eval/                          评测体系(Golden Set + 指标 + 报告)
 ├── skills/                        面试 SKILL(见 skills/README.md)
@@ -518,7 +559,7 @@ docmind/
 ## 开发
 
 ```bash
-python -m pytest                  # 264 个测试
+python -m pytest                  # 334 个测试
 ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 
@@ -529,6 +570,7 @@ python backend/scripts/check_env.py        # 环境自检
 python backend/scripts/parse_pdf.py doc.pdf  # 解析质量检查
 python backend/scripts/bench_large_pdf.py --pages 200   # 大文档压测
 python backend/scripts/smoke_interview.py  # 面试链路端到端冒烟(需服务已启动)
+python backend/scripts/smoke_speech.py     # 语音链路冒烟(真实调 edge-tts / Paraformer)
 ```
 
 ---
@@ -542,7 +584,7 @@ python backend/scripts/smoke_interview.py  # 面试链路端到端冒烟(需服�
 | [03-难点与踩坑记录](docs/03-难点与踩坑记录.md) | 真实难点的现象/根因/方案/验证 |
 | [04-开发路线图](docs/04-开发路线图.md) | 分阶段交付计划 |
 | [05-P0代码精讲](docs/05-P0代码精讲.md) | 逐文件讲解骨架代码 |
-| [06-语音交互方案](docs/06-语音交互方案.md) | ASR + TTS 设计预研 |
+| [06-语音交互方案](docs/06-语音交互方案.md) | ASR + TTS 设计预研 **+ 面试语音版实现记录** |
 | [07-大文档处理方案](docs/07-大文档处理方案.md) | 大文件/多页 PDF 的处理思路（含实测） |
 | [08-面试官Agent方案](docs/08-面试官Agent方案.md) | 面试官 Agent 的设计：全量注入、追问决策、SKILL 机制 |
 | [skills/README](skills/README.md) | SKILL 编写规范（怎么自己写一个面试风格） |
@@ -563,7 +605,8 @@ python backend/scripts/smoke_interview.py  # 面试链路端到端冒烟(需服�
 | 无鉴权 | 靠 `X-User-Id` 头做数据隔离，生产需接入 JWT |
 | 评测语料偏小 | 示例评测集基于 2 页简历，区分度有限 |
 | 面试记录不落库 | 面试状态由前端持有并回传，刷新页面会丢失当前面试（后续版本持久化） |
-| 面试不做语音 | 目前纯文本；语音方案见 [docs/06](docs/06-语音交互方案.md) |
+| 语音识别走云端 | 音频会上传到阿里云，**"数据不出域"这条线在语音环节断了**；接口已抽象，换本地 Whisper 只需新增一个 provider |
+| 语音无 VAD / 无打断 | 按键式录音（点开始、点结束），TTS 播放中只能手动停，不能插话 |
 | SKILL 只能选不能写 | SKILL 是项目内置的 Markdown 文件，需改目录才能新增 —— 这是刻意的：SKILL 应该跟着代码走版本管理 |
 
 ---

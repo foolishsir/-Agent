@@ -161,6 +161,41 @@ class Settings(BaseSettings):
     # 文本抽取字符数低于该值时, 判定为扫描件, 触发 OCR 降级链路
     ocr_fallback_threshold: int = 80
 
+    # ------------------------------------------------------------------ #
+    # 语音 (ASR + TTS)
+    # ------------------------------------------------------------------ #
+    # ASR 提供方: dashscope = 阿里云 Paraformer(中文效果最好, 需 Key)
+    #             none      = 关闭语音输入
+    speech_asr_provider: str = "dashscope"
+    # TTS 提供方: edge = edge-tts(免费, 用微软在线音色, 无需 Key)
+    #             none = 关闭语音输出
+    speech_tts_provider: str = "edge"
+
+    # 阿里云百炼的 Key. **和 llm_api_key 是两个东西**:
+    # 前者是通义系列(含 Paraformer ASR), 后者是对话模型(DeepSeek).
+    # 放在一起容易混, 界面上也分了两个分组.
+    dashscope_api_key: str = ""
+
+    # Paraformer 实时模型. v2 支持热词与更多音频格式.
+    speech_asr_model: str = "paraformer-realtime-v2"
+    # 识别采样率. 前端采集时统一重采样到这个值 —— 两边必须一致,
+    # 不一致的表现是识别出乱码而不是报错, 很难排查.
+    speech_asr_sample_rate: int = 16000
+    # 单段录音时长上限(秒). 面试回答一般 30~90 秒, 给到 3 分钟足够.
+    # 设上限是为了防止有人误按住录音键不放, 把几分钟的音频整个塞进识别接口.
+    speech_max_audio_seconds: int = 180
+
+    # edge-tts 音色. 中文常用:
+    #   zh-CN-XiaoxiaoNeural 女声(自然, 适合面试官)
+    #   zh-CN-YunxiNeural    男声(沉稳)
+    #   zh-CN-YunyangNeural  男声(播报腔)
+    speech_tts_voice: str = "zh-CN-XiaoxiaoNeural"
+    # 语速调整, 形如 "+10%" / "-20%".
+    # 面试提问比正常语速稍慢一点更容易听清, 默认 -5%.
+    speech_tts_rate: str = "-5%"
+    # 单次合成的文本上限(字符). 面试问题都很短, 这个值只用来挡住异常输入.
+    speech_max_tts_chars: int = 2000
+
     # 启动时是否预热本地模型.
     # 预热把"模型加载"的开销从第一个用户请求移到进程启动阶段,
     # 代价是启动变慢(本地 BGE 在 CPU 上约 3~10 秒). 测试环境下应关闭.

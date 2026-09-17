@@ -108,7 +108,9 @@ def main() -> None:
     print(f"    评估: {r3['evaluation']}")
     print(f"    第 3 问: {r3['question']}")
 
-    turns.append({"question": r3["question"], "answer": "这块我了解得不多，主要是靠文档和同事帮忙。"})
+    turns.append(
+        {"question": r3["question"], "answer": "这块我了解得不多，主要是靠文档和同事帮忙。"}
+    )
     rep = post(
         "/interview/summary",
         {

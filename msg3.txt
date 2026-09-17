@@ -1,0 +1,45 @@
+feat: 面试模块语音输入输出（ASR + TTS）
+
+- services/speech/：provider 抽象（沿用 embedding/llm/skills 的同一套模式）
+  - base.py               ASRProvider / TTSProvider 协议 + 数据类
+  - dashscope_asr.py      Paraformer 同步识别（本地文件，不落 OSS）
+  - edge_tts_provider.py  edge-tts 合成
+  - normalizer.py         朗读口语化转换
+- api/v1/speech.py：/status · /transcribe · /synthesize · /spoken-text
+- 设置页新增「语音」分组（ASR/TTS provider、百炼 Key、发音人、语速、录音上限）
+
+前端
+- AudioWorklet 采集 16kHz 单声道 → 自编码 WAV 上传，**不依赖 ffmpeg**
+- 录音按钮带实时音量条与计时（确认麦克风真的在收声音）
+- 面试官提问自动朗读开关 + 停止朗读，偏好存 localStorage
+- 语音不可用时录音按钮置灰并显示具体原因
+
+关键设计决定（都写进 docs/06 第十一节了）
+
+1. **先做面试，不是问答。** 原方案的核心难点是"句子级流式 TTS"——
+   问答要它才能把首字延迟从 10 秒压到 1.5 秒。但面试问题是短句，
+   整句合成只要 2 秒，**这个难点直接不存在了**。换场景消解复杂度。
+
+2. **前端重采样，不用 MediaRecorder + ffmpeg。** 后者要引一个 70MB 外部二进制，
+   和项目"零安装启动"的主张冲突。关键细节：`AudioContext({sampleRate:16000})`
+   只是**请求**，浏览器有权忽略；采样率与 ASR 声明值不一致时**不报错，只出乱码**，
+   所以拿到真实采样率后一律重采样。
+
+3. **口语化只做减法。** 不做"40% → 百分之四十"这类转换 ——
+   现代神经音色本来就读得对，手工转换反而把 `1/2` 这种多义写法改错。
+
+4. **两条规则是戴耳机听之后推翻重写的**：
+   - `~` 直接删除 → `2~10 度` 变成 `210 度`，**意思变了** → 改成区间读"到"
+   - `→` 读作"到" → `40% → 怎么测的` 读成"40%到这个数字…"别扭 → 改成停顿
+   后者说明"标记本身承载语义"是删标记类规则最容易出事的地方。
+
+代价（已写进 README 已知边界）：ASR 走云端，音频出域 ——
+"数据不出域"这条线在语音环节断了。接口已抽象，换本地 Whisper 只需加一个文件。
+
+测试
+- test_speech_normalizer.py 43 个用例，重点是「不该动的东西不能动」
+- test_speech_api.py 21 个用例，桩 provider，覆盖音频校验/错误码/二进制响应契约
+- smoke_speech.py 真实链路冒烟（会联网，不进 CI）
+
+实测：edge-tts 合成 58 字 ≈ 1.8~2.4 s / 37KB；总首字延迟约 2~3.5 s
+验证：334 passed, ruff clean, 前端 24 通过，真实接口全部调通

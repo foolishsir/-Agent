@@ -54,6 +54,10 @@ class ErrorCode(StrEnum):
     LLM_ERROR = "LLM_ERROR"
     LLM_TIMEOUT = "LLM_TIMEOUT"
 
+    # 语音
+    SPEECH_NOT_CONFIGURED = "SPEECH_NOT_CONFIGURED"
+    SPEECH_ERROR = "SPEECH_ERROR"
+
 
 class AppException(Exception):
     """所有业务异常的基类."""
@@ -182,3 +186,26 @@ class LLMTimeoutError(AppException):
     code = ErrorCode.LLM_TIMEOUT
     http_status = 504
     message = "大模型调用超时"
+
+
+# ---------------------------------------------------------------------- #
+# 语音异常
+# ---------------------------------------------------------------------- #
+class SpeechNotConfiguredError(AppException):
+    """语音能力没配好.
+
+    503 而不是 500: 这是"服务端缺配置", 不是"请求有问题",
+    调用方重试也没用, 必须去设置里补.
+    """
+
+    code = ErrorCode.SPEECH_NOT_CONFIGURED
+    http_status = 503
+    message = "语音功能未配置或已关闭, 请在「设置 → 语音」里配置"
+
+
+class SpeechError(AppException):
+    """识别/合成过程中的失败(网络、额度、音色名写错等)."""
+
+    code = ErrorCode.SPEECH_ERROR
+    http_status = 502
+    message = "语音服务调用失败"

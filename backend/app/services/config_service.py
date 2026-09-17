@@ -240,6 +240,69 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         minimum=1,
         maximum=256,
     ),
+    # ---------------------------- 语音 ----------------------------
+    ConfigField(
+        key="speech_asr_provider",
+        label="语音输入 (ASR)",
+        group="语音",
+        type="select",
+        options=("dashscope", "none"),
+        description="dashscope = 阿里云 Paraformer, 中文效果最好; 需要下面的百炼 Key",
+    ),
+    ConfigField(
+        key="dashscope_api_key",
+        label="阿里云百炼 Key",
+        group="语音",
+        type="secret",
+        description="仅语音识别用。和上面「大模型 API Key」不是一个东西",
+    ),
+    ConfigField(
+        key="speech_asr_model",
+        label="识别模型",
+        group="语音",
+        type="str",
+        description="paraformer-realtime-v2 / paraformer-realtime-8k-v2(电话音质)",
+    ),
+    ConfigField(
+        key="speech_tts_provider",
+        label="语音输出 (TTS)",
+        group="语音",
+        type="select",
+        options=("edge", "none"),
+        description="edge = edge-tts, 免费且无需 Key, 需要联网",
+    ),
+    ConfigField(
+        key="speech_tts_voice",
+        label="发音人",
+        group="语音",
+        type="select",
+        options=(
+            "zh-CN-XiaoxiaoNeural",
+            "zh-CN-XiaoyiNeural",
+            "zh-CN-YunxiNeural",
+            "zh-CN-YunjianNeural",
+            "zh-CN-YunyangNeural",
+            "zh-CN-liaoning-XiaobeiNeural",
+            "zh-CN-shaanxi-XiaoniNeural",
+        ),
+        description="Xiaoxiao 女声自然 / Yunxi 男声沉稳 / Yunyang 播报腔",
+    ),
+    ConfigField(
+        key="speech_tts_rate",
+        label="语速",
+        group="语音",
+        type="str",
+        description="形如 -5% / +10%。面试提问稍慢一点更好听清",
+    ),
+    ConfigField(
+        key="speech_max_audio_seconds",
+        label="单段录音上限(秒)",
+        group="语音",
+        type="int",
+        minimum=10,
+        maximum=600,
+        description="超过会被前端自动截断",
+    ),
 )
 
 _FIELD_MAP: dict[str, ConfigField] = {f.key: f for f in CONFIG_FIELDS}
@@ -501,3 +564,22 @@ def _invalidate_caches(changed: set[str]) -> None:
 
     if changed & {"embedding_device", "embedding_model", "embedding_batch_size"}:
         logger.info("向量模型相关配置已变更, 需要重启服务后生效")
+
+    # 语音 provider / 音色 / Key 换了, 缓存的实例必须丢掉.
+    # 尤其 dashscope 的 Key: 它既可能被传进 Recognition, 也可能走全局
+    # dashscope.api_key —— 后者是**进程级全局状态**, 不主动改会一直用旧 Key.
+    if changed & {
+        "speech_asr_provider",
+        "speech_tts_provider",
+        "dashscope_api_key",
+        "speech_asr_model",
+        "speech_asr_sample_rate",
+        "speech_tts_voice",
+        "speech_tts_rate",
+    }:
+        try:
+            from app.services.speech import reset_speech_providers  # noqa: PLC0415
+
+            reset_speech_providers()
+        except ImportError:
+            pass
