@@ -59,11 +59,21 @@ def _check_writable_dirs() -> tuple[bool, str]:
 
 
 def _check_llm() -> tuple[bool, str]:
+    """只检查"配没配", **不检查"能不能用"**.
+
+    探针刻意不发真实请求: `/health/ready` 会被前端每 30 秒轮询一次,
+    每次都调一次模型既慢又费钱.
+
+    代价是存在盲区 —— **Key 过期/被吊销时这里仍然显示就绪**.
+    这个盲区是真实踩到的: Key 401 之后探针一路绿灯, 直到提问才报错.
+    所以 detail 里写清 "仅检查是否配置", 避免它给出虚假的安全感.
+    要验证 Key 是否真能用, 走「设置」页的**测试连接**(那里是真的调一次模型).
+    """
     if not settings.llm_configured:
         return False, "未配置 DOCMIND_LLM_API_KEY"
     key = settings.llm_api_key
     masked = f"{key[:4]}***{key[-4:]}" if len(key) > 8 else "***"
-    return True, f"{settings.llm_provider}/{settings.llm_model} key={masked}"
+    return True, f"{settings.llm_provider}/{settings.llm_model} key={masked} (仅检查是否配置)"
 
 
 def _check_embedding() -> tuple[bool, str]:
