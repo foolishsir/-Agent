@@ -28,14 +28,34 @@ import asyncio
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 
 from app.core.config import settings
 from app.core.exceptions import SpeechError
 from app.core.logging import get_logger
+from app.services.speech.audio_probe import probe_sample_rate
 from app.services.speech.base import SpeechCapability, Transcription
 
 logger = get_logger("docmind.speech.dashscope")
+
+#: 文件后缀 → Paraformer 的容器格式标识.
+#:
+#: **不能写死成 "wav"**: 接口层允许上传 mp3/m4a/webm 等格式(方便用现成音频调试),
+#: 把 mp3 声明成 wav 不会报错, 而是**识别出一堆乱码** —— 这类失败极难归因,
+#: 因为接口返回 200、日志也正常.
+#:
+#: 只列 Paraformer 官方支持的格式; 表里没有的一律退回 wav(主路径就是 wav).
+_FORMAT_BY_SUFFIX: dict[str, str] = {
+    "wav": "wav",
+    "mp3": "mp3",
+    "pcm": "pcm",
+    "opus": "opus",
+    "ogg": "opus",  # 浏览器录音常见的容器, 内容就是 opus
+    "speex": "speex",
+    "aac": "aac",
+    "m4a": "aac",  # m4a 是 aac 的容器
+    "amr": "amr",
+}
 
 
 @dataclass
@@ -105,14 +125,50 @@ class DashScopeASR:
         if not audio:
             raise SpeechError("音频内容为空")
 
-        # SDK 的同步接口只接受**文件路径**, 不接受字节流.
-        # 用一个临时文件桥接 —— 注意必须带正确的后缀, SDK 靠它判断容器格式.
+        # SDK 的同步接口只接受**文件路径**, 不接受字节流, 所以要用临时文件桥接.
+        #
+        # 这里**不能用 NamedTemporaryFile**: 它在 Windows 上以独占方式打开文件
+        # (CreateFile 不带 FILE_SHARE_READ), 而 SDK 内部会自己 open 这个路径去读,
+        # 于是直接 Permission denied:
+        #
+        #     [Errno 13] Permission denied: 'C:\\...\\Temp\\tmpq5y532d0.wav'
+        #
+        # POSIX 允许同一路径被多个句柄打开, 所以这个坑**只在 Windows 上出现** ——
+        # Linux 上开发永远碰不到, 本地测试也照样绿.
+        #
+        # 正确做法: 用 TemporaryDirectory 拿一个目录, 手动写文件并**先关闭句柄**,
+        # 再把路径交给 SDK. 目录级清理还能顺带处理"SDK 没释放句柄"的残留.
         suffix = Path(filename).suffix or ".wav"
+        audio_format = _FORMAT_BY_SUFFIX.get(suffix.lower().lstrip("."), "wav")
+
+        # 采样率**必须取文件里的真实值**, 不能直接用配置值.
+        #
+        # Paraformer 会校验声明值与文件头是否一致, 不一致直接报:
+        #   Failed to decode audio: sample rate 16000 not equals with real 24000
+        # 真实撞到过: edge-tts 合成的是 24kHz mp3, 而配置里的 16000 是给
+        # 浏览器录音(wav)用的 —— 把配置值无条件传过去就炸了.
+        #
+        # 读不出来的格式(裸 pcm 没有头)才退回配置值, 这是唯一必须靠声明的场景.
+        probed = probe_sample_rate(audio, filename)
+        sample_rate = probed or self._sample_rate
+        logger.debug(
+            "asr.sample_rate | probed=%s configured=%s used=%d",
+            probed,
+            self._sample_rate,
+            sample_rate,
+        )
+
         started = time.perf_counter()
-        with NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
-            tmp.write(audio)
-            tmp.flush()
-            sentences = await asyncio.to_thread(self._recognize_sync, tmp.name)
+        # ignore_cleanup_errors: SDK 或防火墙软件偶尔会短暂持有句柄,
+        # 让它把清理失败咽下去 —— 临时目录留在系统 Temp 里无害,
+        # 但为此让一次成功的识别变成报错是不可接受的.
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            path = Path(tmpdir) / f"audio{suffix}"
+            path.write_bytes(audio)
+            # 句柄已随 write_bytes 关闭, 这里开始 SDK 才能打开它
+            sentences = await asyncio.to_thread(
+                self._recognize_sync, str(path), audio_format, sample_rate
+            )
         cost_ms = int((time.perf_counter() - started) * 1000)
 
         text = "".join(sentences).strip()
@@ -130,38 +186,41 @@ class DashScopeASR:
             provider=self.name,
         )
 
-    def _recognize_sync(self, path: str) -> list[str]:
+    def _recognize_sync(
+        self, path: str, audio_format: str = "wav", sample_rate: int | None = None
+    ) -> list[str]:
         """真正调用 SDK. 在 worker 线程里跑, 不阻塞事件循环.
 
         「把阻塞调用丢进线程池」这一点值得单独说: ``Recognition.call`` 内部是
         WebSocket 收发, 单段音频几百毫秒到几秒. 直接在协程里同步调用会把
         整个事件循环卡住 —— 表现是"语音识别期间其他接口全部无响应".
+
+        Args:
+            path: 音频文件路径
+            audio_format: 容器格式(pcm/wav/mp3/...).
+                **必须和文件真实格式一致**: 把 mp3 声明成 wav 不会报错,
+                而是识别出一堆乱码 —— 这类失败很难归因.
+            sample_rate: 采样率. **必须和文件真实值一致**, 否则 SDK 直接报错.
+                默认取配置值, 但调用方通常会传入从文件头读出的真实值.
         """
         # 同样延迟导入(见 available 的说明). 这里还在**工作线程**里,
         # 首次导入的几十毫秒不会卡住事件循环.
         from dashscope.audio.asr import Recognition, RecognitionCallback  # noqa: PLC0415
 
-        collected: list[str] = []
+        # 回调是**构造函数的必填参数**, 但 Recognition.call() 全程不会调它 ——
+        # 它自己内部收集分句, 通过返回值给出结果.
+        #
+        # 这一条是踩出来的: 最初的实现把 on_event 当成主要结果来源,
+        # 结果真实调用时永远拿到空字符串(而桩测试全绿, 因为桩不体现 SDK 的真实契约).
+        # 教训: **mock 只能验证"我以为的契约", 验证不了契约本身对不对.**
+        class _NoopCallback(RecognitionCallback):
+            """占位回调. 结果不走这里, 见下方对返回值的解析."""
 
-        class _CB(RecognitionCallback):
-            def on_event(self, result) -> None:
-                try:
-                    sentence = result.get_sentence()
-                except Exception:  # noqa: BLE001 - 结构变化不该让整段识别失败
-                    return
-                if not sentence:
-                    return
-                if isinstance(sentence, dict):
-                    piece = sentence.get("text", "")
-                    if result.is_sentence_end(sentence) and piece:
-                        collected.append(piece)
-                elif isinstance(sentence, list):
-                    for item in sentence:
-                        if isinstance(item, dict) and item.get("text"):
-                            collected.append(item["text"])
+            def on_open(self) -> None:
+                return
 
-            def on_error(self, result) -> None:  # pragma: no cover - 需要真实网络
-                logger.warning("asr.callback_error | result=%s", result)
+            def on_event(self, result) -> None:  # noqa: ARG002 - 协议要求的方法签名
+                return
 
             def on_complete(self) -> None:
                 return
@@ -169,11 +228,14 @@ class DashScopeASR:
             def on_close(self) -> None:
                 return
 
+            def on_error(self, result) -> None:  # pragma: no cover - 需要真实网络
+                logger.warning("asr.sdk_error | result=%s", result)
+
         recognition = Recognition(
             model=self._model,
-            callback=_CB(),
-            format="wav",
-            sample_rate=self._sample_rate,
+            callback=_NoopCallback(),
+            format=audio_format,
+            sample_rate=sample_rate or self._sample_rate,
         )
         try:
             result = recognition.call(path, api_key=self._api_key)
@@ -185,15 +247,36 @@ class DashScopeASR:
             message = getattr(result, "message", "") or "未知错误"
             raise SpeechError(f"语音识别失败({status}): {message}")
 
-        # 回调偶尔比 call() 返回晚一拍, 兜底从 result 里再补一次
-        if not collected:
-            try:
-                sentence = result.get_sentence()
-                if isinstance(sentence, dict) and sentence.get("text"):
-                    collected.append(sentence["text"])
-            except Exception:  # noqa: BLE001
-                pass
-        return collected
+        return _extract_texts(result)
+
+
+def _extract_texts(result: object) -> list[str]:
+    """从 SDK 返回值里取分句文本.
+
+    ``get_sentence()`` 的返回类型是 **union**, 这是最容易写错的地方:
+
+    - 有完整分句时 → ``RecognitionResult.__init__`` 把内部 ``sentences`` 列表
+      塞进 ``output["sentence"]``, 于是返回 **list[dict]**
+    - 只有一个不完整结果时 → 直接用服务端响应里的 ``output``, 于是返回 **dict**
+
+    (依据: ``dashscope/audio/asr/recognition.py`` 的 ``RecognitionResult.__init__``)
+
+    只处理 dict 分支的话, **正常识别出内容时反而拿到空串** ——
+    而"返回空"看起来像"用户没说话", 排查方向会完全跑偏.
+    """
+    try:
+        payload = result.get_sentence()  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - 结构变化不该让整段识别失败
+        logger.exception("解析识别结果失败")
+        return []
+
+    if isinstance(payload, list):
+        return [
+            str(item["text"]) for item in payload if isinstance(item, dict) and item.get("text")
+        ]
+    if isinstance(payload, dict) and payload.get("text"):
+        return [str(payload["text"])]
+    return []
 
 
 __all__ = ["DashScopeASR"]

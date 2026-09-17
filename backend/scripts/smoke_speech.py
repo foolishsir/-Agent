@@ -25,8 +25,12 @@ import asyncio
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _common import REPO_ROOT, bootstrap  # noqa: E402
+
+# 必须先加载界面配置, 否则读到的 Key 是空的, 会报"未配置"这种误导性结论
+bootstrap()
 
 from app.services.speech import (  # noqa: E402
     get_asr_provider,

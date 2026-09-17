@@ -440,3 +440,215 @@ def test_wav_upload_roundtrip_shape(client, stub_asr):
     )
     assert res.status_code == 200
     assert stub_asr.filenames[-1] == "answer.wav"
+
+
+# --------------------------------------------------------------------------- #
+# 临时音频文件的句柄（真实踩到的 Windows 坑）
+#
+# 用户报错原文:
+#   语音识别失败: 语音识别调用失败:
+#   [Errno 13] Permission denied: 'C:\...\Temp\tmpq5y532d0.wav'
+#
+# 根因: 落盘音频时用了 NamedTemporaryFile, 但**它在 Windows 上是独占打开**
+# (CreateFile 不带 FILE_SHARE_READ). 而 SDK 内部会自己 open 这个路径去读音频,
+# 于是被系统拒绝. POSIX 允许同一路径被多个句柄打开, 所以这个 bug
+# **只在 Windows 上出现** —— 在 Linux 上开发永远碰不到, 测试也照样绿.
+#
+# 修法: TemporaryDirectory + 手动写文件, 先把句柄关掉再把路径交给 SDK.
+# --------------------------------------------------------------------------- #
+def _transcribe_with_inspecting_sdk(monkeypatch, audio: bytes) -> dict[str, Any]:
+    """用一个"自己会打开文件"的假 SDK 跑一遍, 记录它在调用时看到了什么.
+
+    关键点是假 SDK **用独立句柄重新读一次文件** —— 这正是真实 SDK 的行为,
+    也正是原 bug 的触发条件.
+    """
+    import asyncio
+    from pathlib import Path
+
+    from app.services.speech.dashscope_asr import DashScopeASR
+
+    rec: dict[str, Any] = {}
+
+    def fake_recognize_sync(
+        path: str, audio_format: str = "wav", sample_rate: int | None = None
+    ) -> list[str]:
+        p = Path(path)
+        rec["path"] = path
+        rec["format_seen"] = audio_format
+        rec["sample_rate_seen"] = sample_rate
+        rec["exists_at_call"] = p.exists()
+        rec["suffix"] = p.suffix
+        rec["parent"] = str(p.parent)
+        try:
+            # 如果调用方还攥着句柄, Windows 上这里会抛 PermissionError
+            rec["content"] = p.read_bytes()
+            rec["reopen_ok"] = True
+        except OSError as exc:
+            rec["reopen_ok"] = False
+            rec["reopen_error"] = f"{type(exc).__name__}: {exc}"
+            raise
+        return ["识别结果"]
+
+    provider = DashScopeASR(api_key="sk-fake-key")
+    monkeypatch.setattr(provider, "_recognize_sync", fake_recognize_sync)
+    asyncio.run(provider.atranscribe(audio, filename="answer.wav"))
+    return rec
+
+
+def test_audio_file_handle_is_released_before_sdk_reads_it(monkeypatch):
+    """落盘后、交给 SDK 前, **调用方必须已经释放文件句柄**.
+
+    **平台差异必须说清楚**: 在 Linux 上, 即使实现退回成"攥着句柄"(旧 bug),
+    独立句柄也能正常打开同一个文件, 所以这条断言在 Linux 上**会通过**.
+    它真正起作用的地方是 **Windows**(CI 里有 windows-latest runner).
+    不要因为本地 Linux 绿了就以为这条防线是摆设 —— 用户就是在 Windows 上中的招.
+    """
+    rec = _transcribe_with_inspecting_sdk(monkeypatch, b"RIFF-fake-wav-payload")
+
+    assert rec["exists_at_call"] is True, "交给 SDK 时音频文件不存在"
+    assert rec["reopen_ok"] is True, f"SDK 打不开音频文件: {rec.get('reopen_error')}"
+    assert rec["content"] == b"RIFF-fake-wav-payload"
+    # 后缀要保留 —— SDK 靠它判断容器格式, 丢了会当成未知格式
+    assert rec["suffix"] == ".wav"
+
+
+def test_temp_audio_directory_is_cleaned_up(monkeypatch):
+    """识别结束后临时文件要清掉, 不能在系统 Temp 里越堆越多.
+
+    这条**在 Windows 上才有意义**: 如果句柄没释放, 连删除都会失败,
+    临时文件就会一直堆着. 所以它同时也是句柄泄漏的间接探针.
+    """
+    from pathlib import Path
+
+    rec = _transcribe_with_inspecting_sdk(monkeypatch, b"RIFF-x")
+    leftover = Path(rec["parent"])
+    if leftover.exists():
+        assert not list(leftover.glob("*.wav")), "临时音频目录没有被清理"
+
+
+def test_original_suffix_is_passed_through(monkeypatch):
+    """输入后缀要透传给落盘文件名和 format 声明, 不能被固定成 wav。
+
+    `.pcm` 是裸流、`.wav` 带头部, SDK 解析方式不同 —— 后缀丢了识别会出错。
+    """
+    import asyncio
+
+    from app.services.speech.dashscope_asr import DashScopeASR
+
+    seen: dict[str, str] = {}
+
+    def fake_recognize_sync(
+        path: str, audio_format: str = "wav", sample_rate: int | None = None
+    ) -> list[str]:
+        seen["suffix"] = path[path.rfind(".") :]
+        seen["format"] = audio_format
+        return ["ok"]
+
+    provider = DashScopeASR(api_key="sk-fake-key")
+    monkeypatch.setattr(provider, "_recognize_sync", fake_recognize_sync)
+    asyncio.run(provider.atranscribe(b"\x00" * 32, filename="recording.mp3"))
+    assert seen["suffix"] == ".mp3"
+    # format 必须跟着后缀走 —— 把 mp3 声明成 wav 不报错, 只会出乱码
+    assert seen["format"] == "mp3"
+
+
+def test_declared_sample_rate_comes_from_the_file_not_the_config(monkeypatch):
+    """采样率必须取**文件头里的真实值**, 不能直接用配置值。
+
+    真实踩到的报错:
+        语音识别失败(44): Failed to decode audio:
+        sample rate 16000 not equals with real 24000
+
+    起因是 edge-tts 合成的是 24kHz mp3, 而配置里的 16000 是给浏览器录音(wav)用的。
+    """
+    import asyncio
+    import struct
+
+    from app.services.speech.dashscope_asr import DashScopeASR
+
+    seen: dict[str, Any] = {}
+
+    def fake_recognize_sync(
+        path: str, audio_format: str = "wav", sample_rate: int | None = None
+    ) -> list[str]:
+        seen["sample_rate"] = sample_rate
+        return ["ok"]
+
+    # 造一个声明 24000Hz 的最小 WAV 头
+    wav = bytearray(64)
+    wav[0:4] = b"RIFF"
+    wav[8:12] = b"WAVE"
+    struct.pack_into("<I", wav, 24, 24000)
+
+    provider = DashScopeASR(api_key="sk-fake-key", sample_rate=16000)
+    monkeypatch.setattr(provider, "_recognize_sync", fake_recognize_sync)
+    asyncio.run(provider.atranscribe(bytes(wav), filename="a.wav"))
+
+    assert seen["sample_rate"] == 24000, "用了配置值而不是文件里的真实采样率"
+
+
+def test_raw_pcm_falls_back_to_configured_sample_rate(monkeypatch):
+    """裸 PCM 没有文件头, 只能退回配置值 —— 这是唯一必须靠声明的场景。"""
+    import asyncio
+
+    from app.services.speech.dashscope_asr import DashScopeASR
+
+    seen: dict[str, Any] = {}
+
+    def fake_recognize_sync(
+        path: str, audio_format: str = "wav", sample_rate: int | None = None
+    ) -> list[str]:
+        seen["sample_rate"] = sample_rate
+        return ["ok"]
+
+    provider = DashScopeASR(api_key="sk-fake-key", sample_rate=16000)
+    monkeypatch.setattr(provider, "_recognize_sync", fake_recognize_sync)
+    asyncio.run(provider.atranscribe(b"\x00" * 3200, filename="a.pcm"))
+    assert seen["sample_rate"] == 16000
+
+
+# --------------------------------------------------------------------------- #
+# 结果解析: get_sentence() 的返回类型是 union, 这是最容易写错的地方
+# --------------------------------------------------------------------------- #
+class _FakeResult:
+    def __init__(self, payload: Any, status: int = 200, message: str = "") -> None:
+        self._payload = payload
+        self.status_code = status
+        self.message = message
+
+    def get_sentence(self) -> Any:
+        return self._payload
+
+
+def test_extract_texts_from_list_payload():
+    """有完整分句时 get_sentence() 返回 **list**。
+
+    这是**正常路径**, 也恰恰是最初写错的那条: 只判断 isinstance(dict) 的话,
+    识别成功时反而返回空串 —— 而"空"看起来像"用户没说话", 排查方向全跑偏。
+    """
+    from app.services.speech.dashscope_asr import _extract_texts
+
+    payload = [{"text": "第一句。"}, {"text": "第二句。"}]
+    assert _extract_texts(_FakeResult(payload)) == ["第一句。", "第二句。"]
+
+
+def test_extract_texts_from_dict_payload():
+    """只有不完整结果时返回 **dict**(直接用服务端响应的 output)。"""
+    from app.services.speech.dashscope_asr import _extract_texts
+
+    assert _extract_texts(_FakeResult({"text": "半句话"})) == ["半句话"]
+
+
+def test_extract_texts_skips_empty_and_malformed_items():
+    from app.services.speech.dashscope_asr import _extract_texts
+
+    payload = [{"text": "有效"}, {"text": ""}, {"other": 1}, "不是字典", None]
+    assert _extract_texts(_FakeResult(payload)) == ["有效"]
+
+
+def test_extract_texts_handles_none_and_missing_fields():
+    from app.services.speech.dashscope_asr import _extract_texts
+
+    assert _extract_texts(_FakeResult(None)) == []
+    assert _extract_texts(_FakeResult({})) == []
+    assert _extract_texts(_FakeResult([])) == []

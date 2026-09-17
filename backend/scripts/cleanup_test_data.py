@@ -35,8 +35,16 @@ if sys.platform == "win32":
         with suppress(Exception):
             _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _common import REPO_ROOT, bootstrap  # noqa: E402
+
+# 加载界面配置(data/runtime_settings.json).
+# 不加载的话脚本会拿到 .env 与代码默认值, 而不是用户在界面上改的值 ——
+# 表现是"我明明配了 Key, 脚本说没配"这种误导性结论.
+bootstrap(quiet=True)
+
+PROJECT_ROOT = REPO_ROOT
 
 from app.core.config import settings  # noqa: E402
 
