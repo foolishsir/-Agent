@@ -89,3 +89,19 @@ coverage.xml
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ============================== 临时草稿 ===================================
+# 提交信息、临时笔记这类草稿文件不该混进仓库。
+# 这条规则是**踩过两次**加的: 两次都是写 commit message 的临时文件
+# 被 `git add -A` 一起提交了。用前缀约定比"下次注意"可靠。
+# 注意别误伤 requirements.txt —— 所以用具体的名字模式而不是 *.txt。
+tmp_*.txt
+commit_msg*.txt
+msg*.txt
+dm_*.txt
+scratch_*.md
+_probe_*.py
+_envcheck.py
+_tmp_*.js
+_chk.js
+
