@@ -93,13 +93,18 @@ desktop.ini
 # ============================== 临时草稿 ===================================
 # 提交信息、临时笔记这类草稿文件不该混进仓库。
 # 这条规则是**踩过两次**加的: 两次都是写 commit message 的临时文件
-# 被 `git add -A` 一起提交了。用前缀约定比"下次注意"可靠。
-# 注意别误伤 requirements.txt —— 所以用具体的名字模式而不是 *.txt。
+# 被 `git add -A` 一起提交了。用规则挡住比"下次注意"可靠。
+#
+# 根目录的 .txt 几乎必然是草稿 —— 真正要提交的就那几个, 在这里显式放行。
+# 用 `/*.txt` 而不是 `*.txt`: 前者只作用于根目录, 不会误伤
+# eval/ 或 docs/ 下面的说明文件。
+/*.txt
+!/requirements.txt
+!/requirements-dev.txt
+!/requirements.lock.txt
+# 具体名字模式作为补充(万一有人把草稿放进了子目录)
 tmp_*.txt
 commit_msg*.txt
-msg*.txt
-dm_*.txt
-scratch_*.md
 _probe_*.py
 _envcheck.py
 _tmp_*.js
