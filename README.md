@@ -498,6 +498,7 @@ ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 
 node frontend-tests/check-markdown.js   # 前端 Markdown 渲染(21 个用例)
+node frontend-tests/check-dom-ids.js    # 前端 DOM 引用自检($("id") 拼错会让脚本静默中断)
 
 python backend/scripts/check_env.py        # 环境自检
 python backend/scripts/parse_pdf.py doc.pdf  # 解析质量检查

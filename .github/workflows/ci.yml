@@ -74,3 +74,8 @@ jobs:
         # 从页面 HTML 里切出真实的渲染函数来跑用例,
         # 覆盖列表/加粗/代码块/表格, 以及 XSS 转义
         run: node frontend-tests/check-markdown.js
+
+      - name: DOM 引用自检
+        # 单文件前端没有构建期, 顶层 $("id") 拼错会让整个 script 静默中断。
+        # 这里静态校验所有引用都指向真实存在的元素。
+        run: node frontend-tests/check-dom-ids.js

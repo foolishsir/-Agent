@@ -1,0 +1,8 @@
+test: 前端 DOM 引用自检 + 面试页签细节清理
+
+- frontend-tests/check-dom-ids.js: 静态校验 JS 里所有 $("id") 都指向真实元素。
+  单文件前端没有构建期, 顶层事件绑定拼错 id 会让 $() 返回 null 抛 TypeError,
+  **整个 script 静默中断** —— 页面看着加载好了, 但所有按钮都没反应。
+  顺手覆盖 data-view 与 view-* 容器的一致性, 以及反向查残留 id。
+- CI 增加该检查
+- 移除 iv-progress 这段没人引用的死标记
