@@ -37,6 +37,7 @@
 | 💬 **对话历史** | 服务端持久化，刷新不丢，可重命名、搜索、续聊 |
 | ⚙️ **网页配置** | API Key、模型、检索参数全部在网页上改，**保存即生效不用重启** |
 | 📊 **量化评测** | Golden Set + Recall@K / MRR / 拒答率，参数对比有数据支撑 |
+| 🎤 **模拟面试 Agent** | 上传简历 → 勾选 SKILL → 面试官主动提问、**按回答质量动态追问**、最后出复盘报告 |
 
 ---
 
@@ -115,6 +116,25 @@ samples/NX-3000设备维护手册-示例.pdf     8 页，6 个章节，含型号
 - `锡膏储存温度要求是多少？`
 - `NX3K-BL-200 和 NX3K-BL-200H 有什么区别？`
 
+**想试「模拟面试」？** 项目还自带一份刻意留了"槽点"的示例简历：
+
+```
+samples/张明-后端开发-示例简历.pdf     1 页，含可追问的数字、选型与模糊表述
+```
+
+上传它 → 切到「模拟面试」→ 勾选 `技术面试官` + `项目经历深挖` → 开始面试。
+
+> 这份简历不是随便写的：里面有「提升 40%」没说测量口径、「独立完成全栈」与实习
+> 「负责后端」的矛盾、以及「学习能力强」这类没有证据的大词 —— **这些才是面试官
+> 该追问的地方**。用一份说明书去面试是问不出东西的。
+
+需要重新生成示例文件：
+
+```bash
+python scripts/make_sample_doc.py       # 问答用的设备手册
+python scripts/make_sample_resume.py    # 面试用的简历
+```
+
 ---
 
 ## 界面
@@ -128,13 +148,100 @@ samples/NX-3000设备维护手册-示例.pdf     8 页，6 个章节，含型号
 ![分块调参](docs/images/screenshot-chunking.png)
 -->
 
-界面共三个页签：
+界面共四个页签：
 
 | 页签 | 内容 |
 |---|---|
 | **文档管理** | 拖拽上传、处理状态、父子块统计、解析/向量化耗时、重新处理、删除 |
 | **智能问答** | 左侧会话历史（可重命名/搜索/续聊），右侧流式问答与可点击的引用卡片 |
+| **模拟面试** | 勾选 SKILL + 选简历 → 面试官主动提问、动态追问、复盘报告 |
 | **设置** | API Key、模型、检索参数、分块策略，**保存即生效** |
+
+---
+
+## 模拟面试 Agent
+
+这是项目里**唯一一个「Agent 主动」的功能** —— 问答是你问它答，面试是它问你答。
+
+### 和问答链路的区别
+
+| | 智能问答 | 模拟面试 |
+|---|---|---|
+| 谁主动 | 用户 | **Agent** |
+| 文档注入 | 检索 Top-K 片段 | **简历全文注入** |
+| 状态 | 基本无状态 | **强状态**（提纲 / 追问层级 / 轮次） |
+| 追问 | 无 | **按回答质量的动态决策** |
+
+**为什么简历不走检索？** 面试官需要的是**全局视角** —— 发现"实习写负责后端、
+项目又写独立完成全栈"这种前后矛盾，判断技术栈演进，规划提问顺序。这些 Top-K
+检索做不到。同一份文档，问答要的是精确片段，面试要的是整体理解 ——
+**任务不同，注入策略就该不同**。
+
+### SKILL：用文件定义面试风格
+
+面试风格写在 `skills/` 目录下的 Markdown 文件里，前端勾选（最多 2 个）：
+
+```
+skills/
+├── README.md                  SKILL 编写规范
+├── technical-interviewer/
+│   └── SKILL.md               技术面试官：量化来源 / 选型取舍 / 实现深度 / 失败经验
+└── project-deep-dive/
+    └── SKILL.md               项目深挖：STAR 反向拆解 + 四层提问路径
+```
+
+SKILL 是**两层结构**，这是刻意的设计：
+
+```markdown
+---
+id: technical-interviewer
+name: 技术面试官
+max_follow_up: 3          # ← 这些字段由「代码」读取
+max_turns: 25
+---
+
+# 角色                     # ← 从这里往下由「模型」阅读
+你是一位有十年经验的技术面试官……
+```
+
+- **结构化字段交给代码**：`max_follow_up` / `max_turns` 必须被真正执行，
+  否则就是一句没人听的建议 —— 这和项目里「引用编号服务端校验」是同一个道理。
+- **正文交给模型**：提问维度、追问规则表这些是风格描述，模型读得懂就行。
+
+勾选多个 SKILL 时，正文拼接（第一个为主），**约束取更严格值**（min / 任一为真）——
+安全约束只能收紧，不能放宽。
+
+改完 SKILL.md，点界面上的「重新扫描 SKILL」即可生效，不用重启。
+
+### 决策在代码里，不在模型手里
+
+模型只负责**评估回答质量**并输出结构化 JSON；**是否追问由代码决定**：
+
+```python
+if depth >= max_follow_up:          return "NEXT_TOPIC"   # 硬约束优先
+if answer_depth == "deep" and has_tradeoff: return "NEXT_TOPIC"   # 答到位了就别为难人
+if answer_depth == "shallow" or vague_words: return "FOLLOW_UP"
+```
+
+三个刻意的决定：
+
+1. **硬约束优先于质量判断** —— 答得再浅，追问层级到顶也必须换话题。
+2. **答得好就换题** —— 把已经答对的人继续往死里问，得到的是噪声不是信号。
+3. **不给模型看分数** —— 只说"这个回答偏浅、出现了模糊词"，不说 `specificity=0.37`，
+   否则模型会过度解读数字。
+
+### 问题可溯源性校验
+
+和 RAG 的引用校验同构，只是校验对象从「答案」换成了「问题」：
+
+> 简历里写 MySQL，模型却顺口问"你们 Redis 集群怎么做的" ——
+> 在真实面试里这是**致命错误**，候选人立刻知道面试官没看简历。
+
+服务端会抽取问题里的技术名词（`Redis` / `QPS` / `C++` 这类高信号词），
+在简历里逐个查找，找不到就在界面上标黄「简历未提及」。
+
+**宁可漏报也不误报**：每个问题都被标黄，标记就没人看了。所以中文常用词
+和 `why` / `choose` 这类通用英文词一律不查。
 
 ---
 
@@ -359,7 +466,7 @@ docmind/
 │   │   ├── main.py                应用工厂 / 生命周期 / 全局异常
 │   │   ├── static/index.html      前端控制台(单文件, 零构建)
 │   │   ├── core/                  配置 · 日志 · 异常 · 响应 · 中间件
-│   │   ├── api/v1/                health / documents / chat / conversations / settings
+│   │   ├── api/v1/                health / documents / chat / conversations / skills / interview / settings
 │   │   ├── models/                ORM 模型
 │   │   ├── services/
 │   │   │   ├── parser/            PDF 解析与清洗
@@ -369,12 +476,15 @@ docmind/
 │   │   │   ├── retrieval/         混合检索 + RRF + 精排
 │   │   │   ├── llm/               OpenAI 兼容客户端(流式)
 │   │   │   ├── rag/               编排 + 引用校验
+│   │   │   ├── skills/            SKILL 加载/解析/组合
+│   │   │   ├── interview/         面试官 Agent(提纲/决策/可溯源校验)
 │   │   │   └── config_service.py  运行时配置
 │   │   └── db/                    异步会话与引擎
-│   ├── tests/                     220 个测试
-│   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测
+│   ├── tests/                     250 个测试
+│   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测 / 面试链路冒烟
 ├── eval/                          评测体系(Golden Set + 指标 + 报告)
-├── samples/                       示例文档
+├── skills/                        面试 SKILL(见 skills/README.md)
+├── samples/                       示例文档 + 示例简历
 └── docs/                          设计文档
 ```
 
@@ -383,7 +493,7 @@ docmind/
 ## 开发
 
 ```bash
-python -m pytest                  # 220 个测试
+python -m pytest                  # 250 个测试
 ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 
@@ -392,6 +502,7 @@ node frontend-tests/check-markdown.js   # 前端 Markdown 渲染(21 个用例)
 python backend/scripts/check_env.py        # 环境自检
 python backend/scripts/parse_pdf.py doc.pdf  # 解析质量检查
 python backend/scripts/bench_large_pdf.py --pages 200   # 大文档压测
+python backend/scripts/smoke_interview.py  # 面试链路端到端冒烟(需服务已启动)
 ```
 
 ---
@@ -407,6 +518,8 @@ python backend/scripts/bench_large_pdf.py --pages 200   # 大文档压测
 | [05-P0代码精讲](docs/05-P0代码精讲.md) | 逐文件讲解骨架代码 |
 | [06-语音交互方案](docs/06-语音交互方案.md) | ASR + TTS 设计预研 |
 | [07-大文档处理方案](docs/07-大文档处理方案.md) | 大文件/多页 PDF 的处理思路（含实测） |
+| [08-面试官Agent方案](docs/08-面试官Agent方案.md) | 面试官 Agent 的设计：全量注入、追问决策、SKILL 机制 |
+| [skills/README](skills/README.md) | SKILL 编写规范（怎么自己写一个面试风格） |
 | [eval/README](eval/README.md) | 评测方法论与实测结论 |
 
 ---
@@ -423,6 +536,9 @@ python backend/scripts/bench_large_pdf.py --pages 200   # 大文档压测
 | 大文档同步处理 | 目前 inline 模式，超大文件会阻塞请求（方案见 docs/07） |
 | 无鉴权 | 靠 `X-User-Id` 头做数据隔离，生产需接入 JWT |
 | 评测语料偏小 | 示例评测集基于 2 页简历，区分度有限 |
+| 面试记录不落库 | 面试状态由前端持有并回传，刷新页面会丢失当前面试（后续版本持久化） |
+| 面试不做语音 | 目前纯文本；语音方案见 [docs/06](docs/06-语音交互方案.md) |
+| SKILL 只能选不能写 | SKILL 是项目内置的 Markdown 文件，需改目录才能新增 —— 这是刻意的：SKILL 应该跟着代码走版本管理 |
 
 ---
 

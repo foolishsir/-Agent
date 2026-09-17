@@ -284,6 +284,45 @@
   .drawer-head h2 { margin: 0; font-size: 15.5px; font-weight: 600; }
   .drawer-body { flex: 1; overflow-y: auto; padding: 18px 20px 40px; }
 
+/* ---------------------------- 模拟面试 ---------------------------- */
+.iv-setup { display: flex; flex-direction: column; gap: 18px; }
+.iv-setup label { font-size: 12.5px; color: var(--dim); font-weight: 550; }
+.iv-setup select { padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13.5px; font-family: inherit; background: var(--card); color: inherit; max-width: 520px; }
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.skill-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  cursor: pointer; transition: all .13s; background: var(--card); }
+.skill-card:hover { border-color: #c3cfe6; background: #fafbfe; }
+.skill-card.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand) inset; }
+.skill-card.disabled { opacity: .45; cursor: not-allowed; }
+.skill-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.skill-card-head b { font-size: 13.5px; }
+.skill-card .sk-id { font-size: 11px; color: var(--faint); font-family: ui-monospace, monospace; }
+.skill-card p { font-size: 12px; color: var(--dim); line-height: 1.6; margin: 0; }
+.skill-card .sk-meta { margin-top: 7px; font-size: 11px; color: var(--faint); display: flex; gap: 10px; flex-wrap: wrap; }
+.iv-actions { display: flex; align-items: center; gap: 10px; }
+.iv-progress { font-size: 12.5px; color: var(--faint); }
+.iv-side-title { font-size: 12.5px; font-weight: 600; padding: 0 4px; color: var(--dim); }
+.iv-topic { padding: 9px 11px; border-radius: 8px; font-size: 12.5px; line-height: 1.55;
+  color: var(--dim); border-left: 3px solid transparent; margin-bottom: 3px; }
+.iv-topic.now { background: var(--brand-soft); color: #24418a; border-left-color: var(--brand); font-weight: 550; }
+.iv-topic.done { opacity: .5; }
+.iv-topic span { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; font-weight: 400; }
+.iv-flag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 20px;
+  background: #fff6e5; color: #9a6200; margin-left: 6px; }
+.iv-q-meta { font-size: 11.5px; color: var(--faint); margin-bottom: 5px; }
+.iv-eval { margin-top: 8px; padding: 8px 11px; background: #fff; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 12px; color: var(--dim); line-height: 1.65; }
+.iv-eval b { color: #b45309; font-weight: 600; }
+.iv-report-sec { margin-bottom: 16px; }
+.iv-report-sec h3 { font-size: 13px; margin: 0 0 7px; color: var(--dim); }
+.iv-report-sec ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.8; }
+.iv-report-sec li { margin-bottom: 3px; }
+.iv-score { display: flex; gap: 22px; flex-wrap: wrap; }
+.iv-score div { text-align: center; }
+.iv-score b { display: block; font-size: 24px; color: var(--brand); }
+.iv-score span { font-size: 11.5px; color: var(--faint); }
+
   .cp-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
   .cp-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 13px; margin-bottom: 14px; }
   .cp-params .field label { font-size: 12px; }
@@ -350,6 +389,7 @@
     <div class="tabs">
       <button class="tab active" data-view="docs">文档管理</button>
       <button class="tab" data-view="chat">智能问答</button>
+      <button class="tab" data-view="interview">模拟面试</button>
       <button class="tab" data-view="settings">设置</button>
     </div>
     <div class="spacer"></div>
@@ -441,6 +481,69 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= 模拟面试 ========================= -->
+  <section id="view-interview" class="hidden">
+    <div class="card" style="margin-top:20px">
+      <div class="card-head">
+        <h2>面试官 Agent</h2>
+        <span class="hint">上传简历 → 勾选 SKILL → 开始被拷打</span>
+        <div class="spacer"></div>
+        <button class="btn" id="skill-reload" title="改完 skills/ 目录下的 SKILL.md 后点这里，不用重启服务">重新扫描 SKILL</button>
+      </div>
+      <div class="card-body">
+        <div class="iv-setup">
+          <div class="field">
+            <label>① 选择简历（必须是「已就绪」的文档）</label>
+            <select id="iv-doc"><option value="">加载中…</option></select>
+          </div>
+          <div class="field">
+            <label>② 勾选 SKILL（最多 <span id="iv-max">2</span> 个，SKILL 决定面试的提问风格）</label>
+            <div class="skill-grid" id="skill-grid">
+              <div class="empty" style="padding:20px">加载中…</div>
+            </div>
+          </div>
+          <div class="iv-actions">
+            <button class="btn primary" id="iv-start">开始面试</button>
+            <button class="btn" id="iv-reset">重来</button>
+            <span class="iv-progress" id="iv-progress"></span>
+          </div>
+          <div class="note" id="iv-skill-note" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="iv-report-card">
+      <div class="card-head"><h2>面试复盘报告</h2><div class="spacer"></div>
+        <button class="btn" id="iv-report-close">收起</button></div>
+      <div class="card-body" id="iv-report"></div>
+    </div>
+
+    <div class="card hidden" id="iv-room">
+      <div class="chat-shell">
+        <aside class="conv-side" style="width:280px">
+          <div class="conv-side-head"><div class="iv-side-title">面试提纲</div></div>
+          <div class="conv-list" id="iv-outline"></div>
+        </aside>
+        <div class="chat-main">
+          <div class="chat-layout">
+            <div class="chat-scroll" id="iv-scroll"><div id="iv-messages"></div></div>
+            <div class="chat-input">
+              <div class="chat-input-row">
+                <textarea id="iv-answer" rows="2" placeholder="回答问题，Ctrl+Enter 提交"></textarea>
+                <button class="btn primary" id="iv-submit" style="padding:10px 20px">提交回答</button>
+                <button class="btn" id="iv-finish">结束并复盘</button>
+              </div>
+              <div class="chat-hint">
+                <span id="iv-status">就绪</span>
+                <span id="iv-decision"></span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1415,9 +1518,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     tab.classList.add("active");
-    ["docs", "chat", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== tab.dataset.view));
+    ["docs", "chat", "interview", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== tab.dataset.view));
     if (tab.dataset.view === "settings") loadConfig();
     if (tab.dataset.view === "chat") loadChatParams();
+    if (tab.dataset.view === "interview") { loadSkills(); loadInterviewDocs(); }
   });
 });
 
@@ -1548,6 +1652,278 @@ $("reset-config").addEventListener("click", async () => {
   if (!confirm("恢复默认配置？\n\n会删除界面上的配置，回退到 .env / 代码默认值。\n需要重启服务后生效。")) return;
   try { const r = await api("/settings", { method: "DELETE" }); toast("已恢复默认，重启服务后生效", "ok"); loadConfig(true); }
   catch (e) { toast("操作失败：" + e.message, "err", e.traceId); }
+});
+
+/* ============================= 模拟面试 =============================
+   面试是有状态的流程（提纲 → 提问 → 回答 → 追问决策），但状态**由前端持有并每次回传**。
+   这样做的好处：后端不需要为 I1 先加一张面试表，而且调试时能直接在请求体里
+   看到完整状态，比翻数据库直观。
+   ==================================================================== */
+const IV = {
+  docId: "", skillIds: [], maxSelected: 2, skills: [],
+  outline: [], turns: [], followUpDepth: 0, topicIndex: 0,
+  running: false, pendingQ: "",
+};
+
+async function loadSkills() {
+  try {
+    const d = await api("/skills");
+    IV.skills = d.items || [];
+    IV.maxSelected = d.max_selected || 2;
+    $("iv-max").textContent = IV.maxSelected;
+    renderSkills();
+
+    // 加载失败的 SKILL 必须显式提示 —— 用户写了一个 SKILL.md 却没出现在列表里，
+    // 不告诉他原因，他只能干瞪眼
+    const errs = d.errors || [];
+    const note = $("iv-skill-note");
+    if (errs.length) {
+      note.style.display = "";
+      note.innerHTML = `<b>有 ${errs.length} 个 SKILL 加载失败：</b><br>` +
+        errs.map((e) => `${esc(e.file)} — ${esc(e.error)}`).join("<br>");
+    } else {
+      note.style.display = "none";
+    }
+  } catch (e) { toast("加载 SKILL 失败：" + e.message, "err", e.traceId); }
+}
+
+function renderSkills() {
+  const box = $("skill-grid");
+  if (!IV.skills.length) {
+    box.innerHTML = `<div class="empty" style="padding:20px">没找到 SKILL。请在 <code>skills/</code> 目录下新建 <code>你的SKILL/SKILL.md</code>，写法见 <code>skills/README.md</code></div>`;
+    return;
+  }
+  box.innerHTML = IV.skills.map((s) => {
+    const on = IV.skillIds.includes(s.id);
+    const full = !on && IV.skillIds.length >= IV.maxSelected;
+    return `<div class="skill-card ${on ? "on" : ""} ${full ? "disabled" : ""}" data-id="${esc(s.id)}">
+      <div class="skill-card-head"><b>${on ? "☑" : "☐"} ${esc(s.name)}</b></div>
+      <div class="sk-id">${esc(s.id)}</div>
+      <p>${esc(s.description || "（未填写 description）")}</p>
+      <div class="sk-meta">
+        <span>追问 ≤ ${s.max_follow_up} 层</span>
+        <span>轮次 ≤ ${s.max_turns}</span>
+        ${s.require_evidence ? "<span>要求证据</span>" : ""}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+$("skill-grid").addEventListener("click", (ev) => {
+  const card = ev.target.closest(".skill-card");
+  if (!card || IV.running) return;
+  const id = card.dataset.id;
+  const i = IV.skillIds.indexOf(id);
+  if (i >= 0) IV.skillIds.splice(i, 1);
+  else if (IV.skillIds.length < IV.maxSelected) IV.skillIds.push(id);
+  else { toast(`最多勾选 ${IV.maxSelected} 个 SKILL`, "err"); return; }
+  renderSkills();
+});
+
+$("skill-reload").addEventListener("click", async (ev) => {
+  ev.target.disabled = true;
+  try {
+    const r = await api("/skills/reload", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    toast(`重新扫描完成：${r.loaded} 个成功 / ${r.failed} 个失败`, r.failed ? "" : "ok");
+    await loadSkills();
+  } catch (e) { toast("扫描失败：" + e.message, "err", e.traceId); }
+  finally { ev.target.disabled = false; }
+});
+
+async function loadInterviewDocs() {
+  try {
+    const items = (await api("/documents?page=1&page_size=50")).items || [];
+    const ready = items.filter((d) => d.status === "READY");
+    const sel = $("iv-doc");
+    if (!ready.length) {
+      sel.innerHTML = `<option value="">没有「已就绪」的文档，先去「文档管理」上传一份简历</option>`;
+      return;
+    }
+    sel.innerHTML = ready.map((d) =>
+      `<option value="${esc(d.id)}">${esc(d.filename)}（${d.page_count} 页 / ${d.char_count} 字）</option>`).join("");
+    IV.docId = ready[0].id;
+  } catch (e) { toast("加载文档失败：" + e.message, "err", e.traceId); }
+}
+
+$("iv-doc").addEventListener("change", (e) => { IV.docId = e.target.value; });
+
+function ivPush(role, html, meta = "") {
+  const wrap = document.createElement("div");
+  const isIv = role === "interviewer";
+  wrap.className = "msg " + (isIv ? "bot" : "user");
+  wrap.innerHTML = `<div class="avatar">${isIv ? "面" : "我"}</div>
+    <div class="bubble">${meta ? `<div class="iv-q-meta">${meta}</div>` : ""}${html}</div>`;
+  $("iv-messages").appendChild(wrap);
+  const sc = $("iv-scroll");
+  sc.scrollTop = sc.scrollHeight;
+  return wrap;
+}
+
+function renderOutline() {
+  if (!IV.outline.length) {
+    $("iv-outline").innerHTML = `<div style="padding:12px;font-size:12px;color:var(--faint)">本次没有生成提纲（模型输出解析失败），面试会改为自由提问。</div>`;
+    return;
+  }
+  $("iv-outline").innerHTML = IV.outline.map((t, i) => {
+    const cls = i === IV.topicIndex ? "now" : (i < IV.topicIndex ? "done" : "");
+    return `<div class="iv-topic ${cls}">${i + 1}. ${esc(t.topic)}<span>${esc(t.angle)}</span></div>`;
+  }).join("");
+}
+
+/** 问题可溯源标记：模型有可能问出简历里根本没有的技术名词。 */
+function traceFlag(tr) {
+  if (!tr || tr.ok) return "";
+  return `<span class="iv-flag" title="简历里没出现这些词，可能是模型自由发挥">简历未提及：${esc(tr.unknown_terms.join("、"))}</span>`;
+}
+
+$("iv-start").addEventListener("click", async (ev) => {
+  if (!IV.docId) { toast("请先选择一份「已就绪」的简历", "err"); return; }
+  const btn = ev.target;
+  btn.disabled = true;
+  IV.running = true;
+  IV.outline = []; IV.turns = []; IV.followUpDepth = 0; IV.topicIndex = 0;
+  $("iv-messages").innerHTML = "";
+  $("iv-room").classList.remove("hidden");
+  $("iv-report-card").classList.add("hidden");
+  IV.pendingQ = "";
+  $("iv-status").textContent = "正在通读简历并规划提纲…（首次会调用两次模型，稍等）";
+
+  try {
+    const r = await api("/interview/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_id: IV.docId, skill_ids: IV.skillIds }),
+    });
+    IV.outline = r.outline || [];
+    IV.pendingQ = r.question;
+    IV.followUpDepth = r.follow_up_depth || 0;
+    IV.topicIndex = r.topic_index || 0;
+    renderOutline();
+
+    ivPush("interviewer", renderMarkdown(r.question),
+      `第 1 问 · 开场${traceFlag(r.traceability)}`);
+    $("iv-status").textContent =
+      `简历 ${r.resume_chars} 字${r.resume_truncated ? "（已截断）" : ""} · 提纲 ${IV.outline.length} 个点 · 追问上限 ${r.constraints.max_follow_up} 层 / 轮次上限 ${r.constraints.max_turns}`;
+    $("iv-decision").textContent = r.skill_ids.length ? "SKILL：" + r.skill_ids.join(" + ") : "SKILL：默认风格";
+    $("iv-answer").placeholder = IV.outline.length ? `围绕「${IV.outline[0].topic}」回答…` : "回答问题…";
+    $("iv-answer").focus();
+  } catch (e) {
+    toast("开始面试失败：" + e.message, "err", e.traceId);
+    $("iv-status").textContent = "启动失败";
+  } finally { btn.disabled = false; IV.running = false; }
+});
+
+async function submitAnswer() {
+  const box = $("iv-answer");
+  const answer = box.value.trim();
+  if (!answer) { toast("先写点回答", "err"); return; }
+  if (!IV.pendingQ) { toast("还没有进行中的问题", "err"); return; }
+  if (IV.running) return;
+
+  IV.running = true;
+  $("iv-submit").disabled = true;
+  ivPush("me", renderMarkdown(answer));
+
+  const turns = IV.turns.concat([{ question: IV.pendingQ, answer }]);
+  box.value = "";
+  $("iv-status").textContent = "正在评估回答并决定是否追问…";
+
+  try {
+    const r = await api("/interview/next", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        doc_id: IV.docId, skill_ids: IV.skillIds, outline: IV.outline,
+        turns, follow_up_depth: IV.followUpDepth, topic_index: IV.topicIndex,
+      }),
+    });
+    IV.turns = turns;
+
+    if (r.finished) {
+      $("iv-status").textContent = r.reason || "面试结束";
+      $("iv-decision").textContent = "";
+      IV.pendingQ = "";
+      toast("已达到轮次上限，点「结束并复盘」看看报告", "ok");
+      return;
+    }
+
+    IV.pendingQ = r.question;
+    IV.followUpDepth = r.follow_up_depth || 0;
+    IV.topicIndex = r.topic_index || 0;
+    renderOutline();
+
+    const label = { FOLLOW_UP: "追问", NEXT_TOPIC: "换话题", OPEN: "开场" }[r.decision] || "";
+    const evalLine = r.evaluation_hint ? `<div class="iv-eval">上一轮评价：${esc(r.evaluation_hint)}</div>` : "";
+    ivPush("interviewer", renderMarkdown(r.question) + evalLine,
+      `第 ${turns.length + 1} 问 · ${label}${IV.followUpDepth ? ` ${IV.followUpDepth}/${r.constraints.max_follow_up}` : ""}${traceFlag(r.traceability)}`);
+
+    $("iv-status").textContent = `已进行 ${turns.length} / ${r.constraints.max_turns} 轮`;
+    $("iv-decision").textContent = r.decision === "FOLLOW_UP"
+      ? "（回答还不够具体，面试官决定继续深挖）"
+      : "（这个话题问到位了，换下一个）";
+  } catch (e) {
+    toast("提交失败：" + e.message, "err", e.traceId);
+    $("iv-status").textContent = "提交失败";
+  } finally {
+    IV.running = false;
+    $("iv-submit").disabled = false;
+  }
+}
+
+$("iv-submit").addEventListener("click", submitAnswer);
+$("iv-answer").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); submitAnswer(); }
+});
+
+$("iv-finish").addEventListener("click", async (ev) => {
+  if (!IV.turns.length) { toast("还没有回答过任何问题", "err"); return; }
+  ev.target.disabled = true;
+  $("iv-status").textContent = "正在生成复盘报告…";
+  try {
+    const r = await api("/interview/summary", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_id: IV.docId, skill_ids: IV.skillIds, turns: IV.turns }),
+    });
+    renderReport(r.report, r.turn_count);
+    $("iv-status").textContent = `复盘完成（共 ${r.turn_count} 轮）`;
+  } catch (e) {
+    toast("生成报告失败：" + e.message, "err", e.traceId);
+    $("iv-status").textContent = "生成报告失败";
+  } finally { ev.target.disabled = false; }
+});
+
+function renderReport(rep, turnCount) {
+  $("iv-report-card").classList.remove("hidden");
+  const sec = (title, items, fmt) => {
+    if (!items || !items.length) return "";
+    return `<div class="iv-report-sec"><h3>${title}</h3><ul>${items.map(fmt).join("")}</ul></div>`;
+  };
+  const score = rep.score || {};
+  const scoreHtml = Object.keys(score).length
+    ? `<div class="iv-report-sec"><h3>评分</h3><div class="iv-score">${
+        Object.entries(score).map(([k, v]) =>
+          `<div><b>${esc(String(v))}</b><span>${esc({ technical_depth: "技术深度", expression: "表达清晰度", authenticity: "真实性" }[k] || k)}</span></div>`
+        ).join("")}</div></div>`
+    : "";
+  $("iv-report").innerHTML =
+    `<div class="iv-report-sec"><h3>整体评价（共 ${turnCount} 轮）</h3>
+       <div style="font-size:13.5px;line-height:1.85">${renderMarkdown(rep.overall || "（无）")}</div></div>` +
+    scoreHtml +
+    sec("亮点", rep.highlights, (h) => `<li><b>${esc(h.point || "")}</b> — ${esc(h.evidence || "")}</li>`) +
+    sec("顾虑", rep.concerns, (c) => `<li><b>${esc(c.point || "")}</b> — ${esc(c.evidence || "")}</li>`) +
+    sec("改进建议", rep.suggestions, (s) => `<li>${esc(s)}</li>`);
+  $("iv-report-card").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("iv-report-close").addEventListener("click", () => $("iv-report-card").classList.add("hidden"));
+
+$("iv-reset").addEventListener("click", () => {
+  if (IV.running) return;
+  IV.outline = []; IV.turns = []; IV.followUpDepth = 0; IV.topicIndex = 0; IV.pendingQ = "";
+  $("iv-messages").innerHTML = "";
+  $("iv-room").classList.add("hidden");
+  $("iv-report-card").classList.add("hidden");
+  $("iv-answer").value = "";
+  $("iv-status").textContent = "就绪";
+  $("iv-decision").textContent = "";
 });
 
 /* ============================== 启动 ============================== */
