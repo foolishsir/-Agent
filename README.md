@@ -546,7 +546,7 @@ docmind/
 │   │   │   ├── speech/            语音(ASR / TTS / 口语化转换)
 │   │   │   └── config_service.py  运行时配置
 │   │   └── db/                    异步会话与引擎
-│   ├── tests/                     364 个测试
+│   ├── tests/                     365 个测试
 │   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测 / 面试链路冒烟
 ├── eval/                          评测体系(Golden Set + 指标 + 报告)
 ├── skills/                        面试 SKILL(见 skills/README.md)
@@ -559,19 +559,26 @@ docmind/
 ## 开发
 
 ```bash
-python -m pytest                  # 364 个测试
+python -m pytest                  # 365 个测试
 ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 
 node frontend-tests/check-markdown.js   # 前端 Markdown 渲染(21 个用例)
 node frontend-tests/check-dom-ids.js    # 前端 DOM 引用自检($("id") 拼错会让脚本静默中断)
+node frontend-tests/make-browser-shape-wav.js  # 录音 WAV 编码自检(校验 44 字节头)
 
 python backend/scripts/check_env.py        # 环境自检
 python backend/scripts/parse_pdf.py doc.pdf  # 解析质量检查
 python backend/scripts/bench_large_pdf.py --pages 200   # 大文档压测
 python backend/scripts/smoke_interview.py  # 面试链路端到端冒烟(需服务已启动)
 python backend/scripts/smoke_speech.py     # 语音链路冒烟(真实调 edge-tts / Paraformer)
+python backend/scripts/verify_speech_roundtrip.py   # 说一句→听回来, 验证整条链路
+python backend/scripts/verify_browser_audio_path.py # 用浏览器同款 16kHz WAV 打接口
 ```
+
+> **改了后端代码必须重启服务.** 刷新浏览器只会重新加载前端 HTML,
+> Python 模块是启动时载入的 —— 改了不重启, 跑的还是旧代码.
+> 开发时可以用 `python scripts/start.py --reload` 开启热重载, 免去这一步.
 
 ---
 

@@ -184,6 +184,8 @@ class DashScopeASR:
             cost_ms=cost_ms,
             sentences=sentences,
             provider=self.name,
+            audio_format=audio_format,
+            sample_rate=sample_rate,
         )
 
     def _recognize_sync(

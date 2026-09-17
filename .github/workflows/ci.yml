@@ -79,3 +79,8 @@ jobs:
         # 单文件前端没有构建期, 顶层 $("id") 拼错会让整个 script 静默中断。
         # 这里静态校验所有引用都指向真实存在的元素。
         run: node frontend-tests/check-dom-ids.js
+
+      - name: 录音 WAV 编码自检
+        # 从 HTML 里切出真实的 resample/encodeWav 跑一遍, 校验 44 字节头
+        # 每一项都符合 WAV 规范。头写错的话服务端会解码失败或读出乱码采样率。
+        run: node frontend-tests/make-browser-shape-wav.js

@@ -167,6 +167,39 @@ def test_transcribe_returns_text(client, stub_asr):
     assert stub_asr.filenames == ["answer.wav"]
 
 
+def test_transcribe_reports_detected_format_and_sample_rate(client, monkeypatch):
+    """响应里要带服务端**实际判定**的格式与采样率.
+
+    这两个值是排查"识别不对"的入手点: 格式判断错、采样率声明错,
+    都表现为"乱码或空结果", 而翻日志才知道服务端当时认为在处理什么太慢。
+    """
+    from app.api.v1 import speech as speech_api
+
+    class _Provider:
+        name = "stub:probe"
+
+        @property
+        def available(self):
+            return SpeechCapability(provider=self.name, available=True)
+
+        async def atranscribe(self, audio: bytes, *, filename: str = "audio.wav"):
+            return Transcription(
+                text="结果",
+                provider=self.name,
+                audio_format="wav",
+                sample_rate=16000,
+            )
+
+    monkeypatch.setattr(speech_api, "get_asr_provider", lambda: _Provider())
+    data = client.post(
+        "/api/v1/speech/transcribe",
+        files={"file": ("a.wav", b"x" * 100, "audio/wav")},
+    ).json()["data"]
+
+    assert data["audio_format"] == "wav"
+    assert data["sample_rate"] == 16000
+
+
 def test_transcribe_marks_empty_result(client, monkeypatch):
     """识别结果为空不是错误(用户可能没说话), 用 empty 标记让前端提示重说。
 

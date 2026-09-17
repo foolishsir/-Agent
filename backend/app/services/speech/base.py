@@ -34,6 +34,13 @@ class Transcription:
     #: 分句结果. Paraformer 会给句级时间戳, 保留下来便于调试
     sentences: list[str] = field(default_factory=list)
     provider: str = ""
+    #: 服务端**实际收到的**容器格式与采样率.
+    #:
+    #: 回传给前端是为了让"识别不对"可排查: 格式判断错、采样率声明错,
+    #: 都表现为"识别出乱码或空结果", 而这两个值一看就知道
+    #: 服务端当时认为自己在处理什么 —— 否则只能靠翻日志猜.
+    audio_format: str = ""
+    sample_rate: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -42,6 +49,8 @@ class Transcription:
             "cost_ms": self.cost_ms,
             "sentences": self.sentences,
             "provider": self.provider,
+            "audio_format": self.audio_format,
+            "sample_rate": self.sample_rate,
         }
 
 
