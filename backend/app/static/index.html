@@ -321,6 +321,10 @@
 .iv-score div { text-align: center; }
 .iv-score b { display: block; font-size: 24px; color: var(--brand); }
 .iv-score span { font-size: 11.5px; color: var(--faint); }
+#iv-error { padding: 14px 18px; font-size: 13px; line-height: 1.7; color: #a72b2b; }
+#iv-error b { font-weight: 600; }
+.btn.dirty { border-color: var(--brand); color: var(--brand); font-weight: 600;
+  background: var(--brand-soft); }
 
   .cp-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
   .cp-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 13px; margin-bottom: 14px; }
@@ -519,6 +523,8 @@
         <button class="btn" id="iv-report-close">收起</button></div>
       <div class="card-body" id="iv-report"></div>
     </div>
+
+    <div class="card hidden" id="iv-error" style="border-color:#f3c6c6;background:#fff8f8"></div>
 
     <div class="card hidden" id="iv-room">
       <div class="chat-shell">
@@ -1053,6 +1059,8 @@ function renderConfig(data) {
     ? "配置保存于 " + data.runtime_config_path
     : "运行时配置已禁用（DOCMIND_ALLOW_RUNTIME_CONFIG=false）";
   $("save-config").disabled = !data.runtime_config_enabled;
+  // 重新渲染等于"表单内容 == 服务端内容", 未保存标记必须清掉
+  markDirty(false);
   cfgLoaded = true;
 }
 
@@ -1512,15 +1520,25 @@ function bindDrawer() {
 }
 
 /* ============================ 事件绑定 ============================ */
+/* 抽成函数是为了让报错里的「去设置」按钮也能复用 ——
+   否则用户看到"API Key 无效"还得自己找页签在哪. */
+function switchView(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
+  ["docs", "chat", "interview", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== name));
+  if (name === "settings") loadConfig();
+  if (name === "chat") loadChatParams();
+  if (name === "interview") { loadSkills(); loadInterviewDocs(); }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 document.querySelectorAll(".tab").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    tab.classList.add("active");
-    ["docs", "chat", "interview", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== tab.dataset.view));
-    if (tab.dataset.view === "settings") loadConfig();
-    if (tab.dataset.view === "chat") loadChatParams();
-    if (tab.dataset.view === "interview") { loadSkills(); loadInterviewDocs(); }
-  });
+  tab.addEventListener("click", () => switchView(tab.dataset.view));
+});
+
+// 报错横幅里的跳转按钮
+document.addEventListener("click", (ev) => {
+  const btn = ev.target.closest("[data-goto]");
+  if (btn) switchView(btn.dataset.goto);
 });
 
 async function loadChatParams() {
@@ -1622,28 +1640,67 @@ $("conv-list").addEventListener("click", (ev) => {
   if (item && item.dataset.conv !== conv.activeId) openConversation(item.dataset.conv);
 });
 
+/* 测试大模型连接.
+   抽成独立函数是因为它现在有两个触发点:
+     ① 用户主动点「测试连接」
+     ② 保存配置时改了 API Key —— 自动验证一次
+
+   为什么 ② 很重要: 保存成功**不等于** Key 能用. 后端只做格式校验,
+   Key 过期/被吊销/余额不足都要真实调一次才知道. 如果保存后不验证,
+   用户会带着"我已经配好了"的错觉离开设置页, 然后在问答/面试时才撞上
+   401 —— 而且很可能联想不到是 Key 的问题. */
+async function verifyLlmKey({ silent = false } = {}) {
+  const box = $("test-result");
+  box.innerHTML = '<div class="test-result">正在调用大模型…</div>';
+  try {
+    const r = await api("/settings/test-llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    box.innerHTML = `<div class="test-result ok"><b>✓ ${esc(r.message)}</b><pre>模型: ${esc(r.model)}\n地址: ${esc(r.base_url)}\n回复: ${esc(r.reply)}\ntoken: prompt ${r.usage.prompt_tokens} / completion ${r.usage.completion_tokens}</pre></div>`;
+    if (!silent) toast("大模型连接正常", "ok");
+    return true;
+  } catch (e) {
+    box.innerHTML = `<div class="test-result err"><b>✗ Key 不可用 —— 配置已保存，但调用会失败</b><pre>${esc(e.message)}${e.traceId ? "\ntrace_id: " + esc(e.traceId) : ""}</pre></div>`;
+    toast("Key 不可用：" + e.message, "err", e.traceId);
+    return false;
+  }
+}
+
 $("save-config").addEventListener("click", async (ev) => {
   ev.target.disabled = true;
+  // 先取一次 payload: 保存后 renderConfig 会重建表单, 那时就读不到了
+  const payload = collectConfig();
+  const keyChanged = typeof payload.llm_api_key === "string" && payload.llm_api_key.length > 0;
+
   try {
-    const r = await api("/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collectConfig()) });
-    toast(r.count ? `已更新 ${r.count} 项配置并生效` : "没有需要更新的字段", "ok");
+    const r = await api("/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    toast(r.count ? `已更新 ${r.count} 项配置并生效` : "没有需要更新的字段（Key 留空表示不修改）", "ok");
     renderConfig(r.config);
+    markDirty(false);
     loadChatParams();
+
+    // 改过 Key 就立刻验证, 别让用户带着"应该配好了"离开
+    if (keyChanged) await verifyLlmKey({ silent: true });
   } catch (e) { toast("保存失败：" + e.message, "err", e.traceId); }
   finally { ev.target.disabled = false; }
 });
 
+/* 表单"有未保存改动"提示.
+   存在的理由很具体: API Key 是脱敏显示的, 用户粘贴之后**界面没有任何变化**,
+   很容易以为已经生效了. 而留空又正好是"不修改"的合法语义,
+   所以必须给出一个明确的"还没保存"信号. */
+function markDirty(dirty) {
+  const btn = $("save-config");
+  if (!btn) return;
+  btn.textContent = dirty ? "保存配置 ●" : "保存配置";
+  btn.classList.toggle("dirty", !!dirty);
+}
+
+$("cfg-body").addEventListener("input", () => markDirty(true));
+$("cfg-body").addEventListener("change", () => markDirty(true));
+
 $("test-llm").addEventListener("click", async (ev) => {
   ev.target.disabled = true;
-  $("test-result").innerHTML = '<div class="test-result">正在调用大模型…</div>';
-  try {
-    const r = await api("/settings/test-llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-    $("test-result").innerHTML = `<div class="test-result ok"><b>✓ ${esc(r.message)}</b><pre>模型: ${esc(r.model)}\n地址: ${esc(r.base_url)}\n回复: ${esc(r.reply)}\ntoken: prompt ${r.usage.prompt_tokens} / completion ${r.usage.completion_tokens}</pre></div>`;
-    toast("大模型连接正常", "ok");
-  } catch (e) {
-    $("test-result").innerHTML = `<div class="test-result err"><b>✗ 连接失败</b><pre>${esc(e.message)}${e.traceId ? "\ntrace_id: " + esc(e.traceId) : ""}</pre></div>`;
-    toast("连接失败：" + e.message, "err", e.traceId);
-  } finally { ev.target.disabled = false; }
+  try { await verifyLlmKey(); }
+  finally { ev.target.disabled = false; }
 });
 
 $("reset-config").addEventListener("click", async () => {
@@ -1774,6 +1831,32 @@ function traceFlag(tr) {
   return `<span class="iv-flag" title="简历里没出现这些词，可能是模型自由发挥">简历未提及：${esc(tr.unknown_terms.join("、"))}</span>`;
 }
 
+/* 把后端的错误码翻译成"下一步该干什么".
+
+   为什么值得单独做: 用户看到「API Key 无效或已过期(401)」时,
+   未必知道该去哪个页签. 而这里最容易发生的是**以为已经配好了**
+   (保存成功过、界面上显示"已配置"), 于是完全想不到问题出在 Key 上.
+   所以错误提示不能只描述现象, 必须给动作. */
+function errorAction(e) {
+  const code = e.code || "";
+  const msg = e.message || "";
+  if (code === "LLM_ERROR" || code === "LLM_NOT_CONFIGURED" || /Key|401|403/.test(msg)) {
+    return { text: "去「设置」检查 API Key", view: "settings", hint: "点「保存配置」后会自动验证 Key 是否真的能用" };
+  }
+  if (code === "PARAM_INVALID" || code === "NOT_FOUND") return null;
+  return null;
+}
+
+function showIvError(e) {
+  const act = errorAction(e);
+  const box = $("iv-error");
+  box.classList.remove("hidden");
+  box.innerHTML = `<b>✗ ${esc(e.message)}</b>` +
+    (e.traceId ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">trace_id: ${esc(e.traceId)}</div>` : "") +
+    (act ? `<div style="margin-top:9px"><button class="btn primary" data-goto="${act.view}">${esc(act.text)}</button>
+            <span style="font-size:11.5px;color:var(--faint);margin-left:9px">${esc(act.hint)}</span></div>` : "");
+}
+
 $("iv-start").addEventListener("click", async (ev) => {
   if (!IV.docId) { toast("请先选择一份「已就绪」的简历", "err"); return; }
   const btn = ev.target;
@@ -1781,6 +1864,7 @@ $("iv-start").addEventListener("click", async (ev) => {
   IV.running = true;
   IV.outline = []; IV.turns = []; IV.followUpDepth = 0; IV.topicIndex = 0;
   $("iv-messages").innerHTML = "";
+  $("iv-error").classList.add("hidden");
   $("iv-room").classList.remove("hidden");
   $("iv-report-card").classList.add("hidden");
   IV.pendingQ = "";
@@ -1807,6 +1891,7 @@ $("iv-start").addEventListener("click", async (ev) => {
   } catch (e) {
     toast("开始面试失败：" + e.message, "err", e.traceId);
     $("iv-status").textContent = "启动失败";
+    showIvError(e);
   } finally { btn.disabled = false; IV.running = false; }
 });
 
@@ -1860,6 +1945,7 @@ async function submitAnswer() {
   } catch (e) {
     toast("提交失败：" + e.message, "err", e.traceId);
     $("iv-status").textContent = "提交失败";
+    showIvError(e);
   } finally {
     IV.running = false;
     $("iv-submit").disabled = false;
@@ -1885,6 +1971,7 @@ $("iv-finish").addEventListener("click", async (ev) => {
   } catch (e) {
     toast("生成报告失败：" + e.message, "err", e.traceId);
     $("iv-status").textContent = "生成报告失败";
+    showIvError(e);
   } finally { ev.target.disabled = false; }
 });
 
