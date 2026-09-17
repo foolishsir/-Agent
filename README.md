@@ -117,24 +117,42 @@ samples/NX-3000设备维护手册-示例.pdf     8 页，6 个章节，含型号
 - `锡膏储存温度要求是多少？`
 - `NX3K-BL-200 和 NX3K-BL-200H 有什么区别？`
 
-**想试「模拟面试」？** 项目还自带一份刻意留了"槽点"的示例简历：
+**想试「模拟面试」？** 项目自带 5 份简历，**全部是虚构内容，不含任何真实个人信息**：
 
 ```
-samples/张明-后端开发-示例简历.pdf     1 页，含可追问的数字、选型与模糊表述
+samples/张明-后端开发-示例简历.pdf      手工设计，槽点最典型（推荐先用这份）
+samples/周航-后端开发-示例简历.pdf      ┐
+samples/吴迪-前端开发-示例简历.pdf      │ 随机生成，覆盖 4 个方向
+samples/徐蕾-数据开发-示例简历.pdf      │
+samples/赵鑫-AI 应用开发-示例简历.pdf   ┘
 ```
 
-上传它 → 切到「模拟面试」→ 勾选 `技术面试官` + `项目经历深挖` → 开始面试。
+上传任意一份 → 切到「模拟面试」→ 勾选 `技术面试官` + `项目经历深挖` → 开始面试。
 
 > 这份简历不是随便写的：里面有「提升 40%」没说测量口径、「独立完成全栈」与实习
 > 「负责后端」的矛盾、以及「学习能力强」这类没有证据的大词 —— **这些才是面试官
 > 该追问的地方**。用一份说明书去面试是问不出东西的。
 
-需要重新生成示例文件：
+**自己生成**（可复现）：
 
 ```bash
-python scripts/make_sample_doc.py       # 问答用的设备手册
-python scripts/make_sample_resume.py    # 面试用的简历
+python scripts/make_sample_doc.py                              # 问答用的设备手册
+
+python scripts/make_sample_resume.py                           # 手工设计的那份
+python scripts/make_sample_resume.py --random                  # 随机一份
+python scripts/make_sample_resume.py --random --seed 314       # 指定种子(可复现)
+python scripts/make_sample_resume.py --random --count 4        # 一次 4 份(方向不重样)
+python scripts/make_sample_resume.py --random --role 前端开发   # 指定方向
 ```
+
+**关于隐私**：演示材料带真实个人信息是很常见的翻车点，所以这里做了三层保证 ——
+姓名/学校/公司全为虚构（学校公司一律用「某某…」），联系方式是**显式占位符**
+（`138-0000-0000` + RFC 2606 保留域名 `example.com`，**永远不可能指向真人邮箱**），
+生成后还会**自动扫一遍产物**，发现任何像真实手机号 / 身份证 / 非保留域名邮箱的
+模式就直接中止并报错。
+
+> 生成器还会打印**这份简历埋了哪些可被追问的点** —— 演示时知道靶子在哪，
+> 才能顺势引导面试官 Agent 去追，而不是等它自己撞上去。
 
 ---
 
@@ -546,7 +564,7 @@ docmind/
 │   │   │   ├── speech/            语音(ASR / TTS / 口语化转换)
 │   │   │   └── config_service.py  运行时配置
 │   │   └── db/                    异步会话与引擎
-│   ├── tests/                     366 个测试
+│   ├── tests/                     421 个测试
 │   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测 / 面试链路冒烟
 ├── eval/                          评测体系(Golden Set + 指标 + 报告)
 ├── skills/                        面试 SKILL(见 skills/README.md)
@@ -559,7 +577,7 @@ docmind/
 ## 开发
 
 ```bash
-python -m pytest                  # 366 个测试
+python -m pytest                  # 421 个测试
 ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 
