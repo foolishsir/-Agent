@@ -379,3 +379,133 @@ def test_no_skill_still_works(client, ready_doc, stub_llm):
     res = client.post("/api/v1/interview/start", json={"doc_id": ready_doc, "skill_ids": []})
     assert res.status_code == 200
     assert res.json()["data"]["skill_ids"] == []
+
+
+# --------------------------------------------------------------------------- #
+# 前后端字段契约
+#
+# 单文件前端**没有类型检查也没有构建期**: 后端把 `resume_chars` 改名成
+# `resume_length`, 前端读到 undefined —— 不会报错、不会崩, 只是页面上显示
+# "简历 undefined 字". 这类问题只有真人在浏览器里点到才会发现.
+#
+# 所以把"前端读了哪些字段"固化成断言. 后端改名, 这里立刻红.
+# --------------------------------------------------------------------------- #
+def test_start_response_matches_frontend_contract(client, ready_doc, stub_llm):
+    data = client.post("/api/v1/interview/start", json=_body(ready_doc)).json()["data"]
+
+    for field in (
+        "outline",
+        "question",
+        "decision",
+        "follow_up_depth",
+        "topic_index",
+        "traceability",
+        "resume_chars",
+        "resume_truncated",
+        "constraints",
+        "skill_ids",
+    ):
+        assert field in data, f"前端读了 start.{field}, 但接口没返回"
+
+    for field in ("topic", "angle", "opening"):
+        assert field in data["outline"][0], f"前端读了 outline[].{field}"
+
+    for field in ("max_follow_up", "max_turns"):
+        assert field in data["constraints"], f"前端读了 constraints.{field}"
+
+    for field in ("ok", "unknown_terms", "grounded_terms"):
+        assert field in data["traceability"], f"前端读了 traceability.{field}"
+
+
+def test_next_response_matches_frontend_contract(client, ready_doc, stub_llm):
+    start = client.post("/api/v1/interview/start", json=_body(ready_doc)).json()["data"]
+
+    data = client.post(
+        "/api/v1/interview/next",
+        json=_body(
+            ready_doc,
+            outline=start["outline"],
+            turns=[{"question": start["question"], "answer": "不清楚。"}],
+        ),
+    ).json()["data"]
+
+    for field in (
+        "finished",
+        "question",
+        "decision",
+        "evaluation",
+        "evaluation_hint",
+        "traceability",
+        "follow_up_depth",
+        "topic_index",
+        "constraints",
+    ):
+        assert field in data, f"前端读了 next.{field}, 但接口没返回"
+
+
+def test_finish_response_matches_frontend_contract(client, ready_doc, stub_llm):
+    """到轮次上限时前端只读 finished / reason / decision 三个字段。"""
+    start = client.post("/api/v1/interview/start", json=_body(ready_doc)).json()["data"]
+    turns = [
+        {"question": f"q{i}", "answer": f"a{i}"} for i in range(start["constraints"]["max_turns"])
+    ]
+    data = client.post(
+        "/api/v1/interview/next",
+        json=_body(ready_doc, outline=start["outline"], turns=turns),
+    ).json()["data"]
+
+    for field in ("finished", "reason", "decision"):
+        assert field in data
+
+
+def test_summary_response_matches_frontend_contract(client, ready_doc, stub_llm):
+    data = client.post(
+        "/api/v1/interview/summary",
+        json=_body(ready_doc, turns=[{"question": "q", "answer": "a"}]),
+    ).json()["data"]
+
+    assert "turn_count" in data
+    report = data["report"]
+    for field in ("overall", "highlights", "concerns", "suggestions", "score"):
+        assert field in report, f"前端读了 report.{field}"
+    for field in ("point", "evidence"):
+        assert field in report["highlights"][0], f"前端读了 highlights[].{field}"
+
+
+def test_skills_response_matches_frontend_contract(client):
+    """勾选框渲染靠这几个字段, 少任何一个都会显示成 undefined。"""
+    item = client.get("/api/v1/skills").json()["data"]["items"][0]
+    for field in (
+        "id",
+        "name",
+        "description",
+        "max_follow_up",
+        "max_turns",
+        "require_evidence",
+    ):
+        assert field in item, f"前端读了 skill.{field}"
+
+
+def test_summary_survives_non_json_model_output(client, ready_doc, monkeypatch):
+    """模型返回一段散文而不是 JSON 时, 复盘不能崩 —— 总比丢掉整场面试好。"""
+    from app.api.v1 import interview as interview_api
+
+    class ProseLLM:
+        configured = True
+        name = "stub:prose"
+
+        async def achat(self, messages, **kwargs):
+            return ChatResult(content="这场面试整体不错，建议多准备量化数据。")
+
+    monkeypatch.setattr(interview_api, "get_llm_client", lambda: ProseLLM())
+
+    res = client.post(
+        "/api/v1/interview/summary",
+        json=_body(ready_doc, turns=[{"question": "q", "answer": "a"}]),
+    )
+    assert res.status_code == 200
+    report = res.json()["data"]["report"]
+    # 解析失败时把原文塞进 overall, 而不是返回 500
+    assert "整体不错" in report["overall"]
+    assert report["highlights"] == []
+    assert report["score"] == {}
