@@ -89,6 +89,42 @@ const unused = Array.from(ids)
   .filter((id) => !id.startsWith("view-") && !id.startsWith("health"))
   .sort();
 
+// ---------------- 5. 不许把「瞬时全局状态」烙进 disabled ----------------
+//
+// 这一条来自一个真实且很隐蔽的 bug:
+//
+//   renderDocs() 里写了 `${busy ? "disabled" : ""}`, 而 renderDocs 是在
+//   upload() 的 `await loadDocs()` 中调用的 —— 那一刻 busy 还是 true
+//   (finally 还没执行)。于是**每次上传完成, 整张列表的删除按钮全变禁用**,
+//   而之后没有任何东西会重渲染它(切换页签当时也不加载列表)。
+//
+//   结果: 按钮点下去没有请求、没有报错、没有任何反馈 ——
+//   用户只能猜"是不是必须留一个文档?"。
+//
+// 根因是**渲染期读取了一个会独立于本次渲染而变化的全局状态**:
+// 状态恢复了, 界面却已经永久停在错误显示上。
+//
+// 注意和 renderSkills 里 `${full ? "disabled" : ""}` 的区别 ——
+// 那个**不算违规**: `full` 是由 IV.skillIds 现算出来的派生值,
+// 而每次勾选变化都会重新调用 renderSkills, 状态和渲染是同步的, 卡不住。
+//
+// 所以规则精确到"瞬时的全局标志", 而不是"凡是用到 disabled 就报"。
+const TRANSIENT_GLOBALS = ["busy", "loading", "saving", "uploading", "submitting", "pending"];
+const bakedState = [];
+const bakedRe = /\$\{\s*(\w+)\s*(?:\?|&&)[^}]*?["']disabled["'][^}]*?\}/g;
+for (const m of html.matchAll(bakedRe)) {
+  if (!TRANSIENT_GLOBALS.includes(m[1])) continue;
+  const line = html.slice(0, m.index).split("\n").length;
+  bakedState.push(`第 ${line} 行: ${m[0].trim()}`);
+}
+checks.push({
+  name: "渲染时不把瞬时状态烙进 disabled",
+  ok: bakedState.length === 0,
+  detail: bakedState.length
+    ? `会导致按钮永久失效: ${bakedState.join(" | ")}`
+    : `检查了 ${TRANSIENT_GLOBALS.length} 个瞬时状态变量`,
+});
+
 // ---------------- 输出 ----------------
 let failed = 0;
 for (const c of checks) {

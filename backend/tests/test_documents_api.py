@@ -269,6 +269,60 @@ def test_cannot_delete_other_users_document(client: TestClient, sample_pdf: Path
     )
 
 
+def test_can_delete_every_document_until_list_is_empty(
+    client: TestClient, sample_pdf: Path, tmp_root: Path
+) -> None:
+    """**没有"必须保留一个文档"的限制** —— 可以一路删到 0.
+
+    这条是为一个真实误解加的: 用户删不掉文档, 以为系统要求至少留一份。
+    实际原因是前端把 `busy` 状态在渲染时烙进了按钮的 disabled,
+    上传过一次之后删除按钮就永久失效了(详见 frontend-tests/check-dom-ids.js 的说明)。
+
+    后端这条契约本身是正确的, 但**没有任何测试盯着它** ——
+    万一将来有人"顺手"加一条"至少保留一个"的保护(比如为了 demo 好看),
+    就会悄悄破坏用户的预期。所以在这里钉死。
+
+    注意两份文档必须**内容不同**: 内容相同会命中 MD5 幂等, 复用同一条记录,
+    那样只落到一份文档上, 测不到"删多份"。
+    """
+    import pymupdf as fitz
+
+    user = "u-delete-all"
+    ids: list[str] = []
+    for marker in ("A", "B", "C"):
+        doc = fitz.open()
+        page = doc.new_page(width=595, height=842)
+        page.insert_text((72, 100), f"Unique delete-test document {marker}", fontsize=14)
+        payload = doc.tobytes()
+        doc.close()
+
+        resp = client.post(
+            "/api/v1/documents",
+            files={"file": (f"del-{marker}.pdf", payload, "application/pdf")},
+            headers={"X-User-Id": user},
+        )
+        assert resp.status_code in (200, 201), resp.text
+        ids.append(resp.json()["data"]["document"]["id"])
+
+    listing = client.get("/api/v1/documents", headers={"X-User-Id": user}).json()["data"]
+    assert len(listing["items"]) == 3
+
+    # 逐个删, 每次都应该真的少一个
+    for index, doc_id in enumerate(ids):
+        resp = client.delete(f"/api/v1/documents/{doc_id}", headers={"X-User-Id": user})
+        assert resp.status_code == 200, resp.text
+        remaining = client.get("/api/v1/documents", headers={"X-User-Id": user}).json()["data"]
+        expected = 3 - index - 1
+        assert len(remaining["items"]) == expected, (
+            f"删了第 {index + 1} 份后应该剩 {expected} 份, 实际 {len(remaining['items'])}"
+        )
+
+    # 删到 0 —— 列表为空, 而不是报错或被拒
+    final = client.get("/api/v1/documents", headers={"X-User-Id": user}).json()["data"]
+    assert final["items"] == []
+    assert final["total"] == 0
+
+
 # --------------------------------------------------------------------------- #
 # 重新处理
 # --------------------------------------------------------------------------- #

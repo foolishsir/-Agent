@@ -546,7 +546,7 @@ docmind/
 │   │   │   ├── speech/            语音(ASR / TTS / 口语化转换)
 │   │   │   └── config_service.py  运行时配置
 │   │   └── db/                    异步会话与引擎
-│   ├── tests/                     365 个测试
+│   ├── tests/                     366 个测试
 │   └── scripts/                   环境自检 / 解析质量检查 / 大文档压测 / 面试链路冒烟
 ├── eval/                          评测体系(Golden Set + 指标 + 报告)
 ├── skills/                        面试 SKILL(见 skills/README.md)
@@ -559,7 +559,7 @@ docmind/
 ## 开发
 
 ```bash
-python -m pytest                  # 365 个测试
+python -m pytest                  # 366 个测试
 ruff check . --fix                # 代码检查
 ruff format .                     # 格式化
 

@@ -691,8 +691,8 @@ function renderDocs(items) {
       <td class="num" style="font-size:12px">${fmtMs(d.parse_cost_ms)} / ${fmtMs(d.embed_cost_ms)}</td>
       <td><div class="actions">
         <button class="btn" data-act="chunks" data-id="${esc(d.id)}">分块</button>
-        <button class="btn" data-act="reindex" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>重跑</button>
-        <button class="btn danger" data-act="delete" data-id="${esc(d.id)}" ${busy ? "disabled" : ""}>删除</button>
+        <button class="btn" data-act="reindex" data-id="${esc(d.id)}">重跑</button>
+        <button class="btn danger" data-act="delete" data-id="${esc(d.id)}">删除</button>
       </div></td>
     </tr>`).join("");
 
@@ -1557,6 +1557,7 @@ function bindDrawer() {
 function switchView(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
   ["docs", "chat", "interview", "settings"].forEach((v) => $("view-" + v).classList.toggle("hidden", v !== name));
+  if (name === "docs") loadDocs();   // 每次都刷新: 列表上的按钮状态不该靠"上次渲染"残留
   if (name === "settings") loadConfig();
   if (name === "chat") loadChatParams();
   if (name === "interview") { loadSkills(); loadInterviewDocs(); loadSpeechStatus(); }
@@ -1618,22 +1619,39 @@ document.addEventListener("click", async (ev) => {
     return;
   }
 
-  if (busy) return;
+  // 这里**不再把 busy 烙进按钮的 disabled** —— 这是个踩过的坑:
+  //
+  //   renderDocs() 在 upload() 的 `await loadDocs()` 里被调用, 而那一刻
+  //   `busy` 还是 true(finally 还没跑), 于是**每次上传完, 整张列表的
+  //   删除/重跑按钮全部变成禁用**。而 switchView("docs") 不重新加载列表,
+  //   之后也没有任何东西会重渲染它 —— 结果是按钮永久失效:
+  //   点下去没有请求、没有报错、没有任何反馈, 用户只能得出
+  //   "是不是必须留一个文档?" 这种结论。
+  //
+  // 教训: **渲染期读取瞬时状态, 一旦状态回不来了, 界面就永久卡在错误显示上。**
+  // 正确的做法是渲染时永远给可点的按钮, 在**点击那一刻**判断并给出反馈。
+  if (busy) { toast("正在处理上一个操作，请稍候…", "err"); return; }
 
   if (act === "delete") {
     if (!confirm("确认删除这份文档？\n\n会同时清理向量库中的分块与原始文件。")) return;
     busy = true;
-    try { const r = await api("/documents/" + id, { method: "DELETE" }); toast(`已删除：清理 ${r.deleted_chunks} 个分块、${r.deleted_vectors} 条向量`, "ok"); await loadDocs(); }
-    catch (e) { toast("删除失败：" + e.message, "err", e.traceId); }
+    btn.disabled = true;
+    try {
+      const r = await api("/documents/" + id, { method: "DELETE" });
+      toast(`已删除：清理 ${r.deleted_chunks} 个分块、${r.deleted_vectors} 条向量`, "ok");
+      await loadDocs();
+    }
+    catch (e) { toast("删除失败：" + e.message, "err", e.traceId); btn.disabled = false; }
     finally { busy = false; }
     return;
   }
 
   if (act === "reindex") {
     busy = true;
+    btn.disabled = true;
     $("progress").classList.add("show"); $("progress-text").textContent = "正在重新处理…";
     try { const r = await api(`/documents/${id}/reindex`, { method: "POST" }); toast(`重新处理完成：${r.status}`, r.status === "READY" ? "ok" : "err"); await loadDocs(); }
-    catch (e) { toast("重新处理失败：" + e.message, "err", e.traceId); }
+    catch (e) { toast("重新处理失败：" + e.message, "err", e.traceId); btn.disabled = false; }
     finally { busy = false; $("progress").classList.remove("show"); }
   }
 });
