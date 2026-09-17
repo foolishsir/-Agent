@@ -556,6 +556,7 @@
           <div class="chat-layout">
             <div class="chat-scroll" id="iv-scroll"><div id="iv-messages"></div></div>
             <div class="chat-input">
+              <div class="note" id="iv-voice-note" style="display:none;margin:0 0 10px"></div>
               <div class="chat-input-row">
                 <textarea id="iv-answer" rows="2" placeholder="回答问题，Ctrl+Enter 提交"></textarea>
                 <button class="btn" id="iv-mic" title="按一下开始录音，再按一下结束并识别">🎤 语音回答</button>
@@ -2092,25 +2093,61 @@ registerProcessor('capture', CaptureProcessor);
 `;
 
 async function loadSpeechStatus() {
+  const note = $("iv-voice-note");
   try {
     const s = await api("/speech/status");
     IV.speech = s;
     const mic = $("iv-mic");
-    if (!s.asr.available) {
-      mic.disabled = true;
-      mic.title = s.asr.reason;
-      mic.textContent = "🎤 语音不可用";
-    } else {
+
+    if (s.asr.available) {
       mic.disabled = false;
       mic.title = `按一下开始录音，再按一下结束并识别（最长 ${s.max_audio_seconds} 秒）`;
       mic.textContent = "🎤 语音回答";
       rec.limitSec = s.max_audio_seconds || 180;
+      note.style.display = "none";
+    } else {
+      mic.disabled = true;
+      mic.title = s.asr.reason;
+      mic.textContent = "🎤 语音不可用";
+      // 原因**必须显示在界面上**, 不能只放 tooltip:
+      // 置灰的按钮在很多系统上悬停根本不弹提示, 用户只能看到一个
+      // 没有解释的灰按钮 —— 除了来问人没有别的出路.
+      note.style.display = "";
+      note.innerHTML =
+        `<b>语音输入不可用：</b>${esc(s.asr.reason)}` +
+        (s.tts.available
+          ? `<div style="margin-top:5px;font-size:12px;opacity:.85">
+               注意：语音<b>输出</b>（朗读面试官提问）是另一个通道，用的是 edge-tts，
+               不需要 Key，现在是可用的。</div>`
+          : "") +
+        `<div style="margin-top:8px">
+           <button class="btn primary" data-goto="settings">去「设置 → 语音」配置</button>
+           <span style="font-size:11.5px;color:var(--faint);margin-left:9px">
+             也可以直接打字回答，不影响面试</span>
+         </div>`;
     }
-    $("iv-autoplay").closest("label").title = s.tts.available
+
+    const auto = $("iv-autoplay");
+    auto.closest("label").title = s.tts.available
       ? `当前发音人：${s.voice}`
       : s.tts.reason;
-    $("iv-autoplay").disabled = !s.tts.available;
-  } catch { /* 语音不可用不该影响面试本身, 静默降级 */ }
+    auto.disabled = !s.tts.available;
+    if (!s.tts.available && auto.checked) {
+      auto.checked = false;
+      localStorage.setItem("docmind.autoplay", "0");
+    }
+  } catch (e) {
+    // 状态查不到时**不能**保持默认的可用外观 —— 那会让用户点下去才失败.
+    // 显式置灰并说明, 比"看起来能用但一按就报错"好.
+    $("iv-mic").disabled = true;
+    $("iv-mic").textContent = "🎤 语音不可用";
+    $("iv-mic").title = e.message;
+    note.style.display = "";
+    note.innerHTML = `<b>语音状态检查失败：</b>${esc(e.message)}
+      <div style="margin-top:8px"><button class="btn" id="iv-voice-retry">重试</button></div>`;
+    const retry = $("iv-voice-retry");
+    if (retry) retry.addEventListener("click", loadSpeechStatus);
+  }
 }
 
 function fmtSec(ms) {
